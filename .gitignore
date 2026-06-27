@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.local
+
+# Artefactos generados al probar
+ejemplo.pdf
+
+# Sistema / editores
+.DS_Store
+*.log
+.vscode/
+.idea/
