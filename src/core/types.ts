@@ -42,6 +42,15 @@ export interface OpcionesGeneracion {
    * Si se omite, se usa una semilla aleatoria.
    */
   semilla?: number;
+  /**
+   * Número inicial (1-based) dentro de la secuencia que define la semilla.
+   * Por defecto 1. Permite repartir tramos DISJUNTOS de una misma semilla
+   * entre distintos títulos sin que se repita ningún cartón: p. ej. con la
+   * misma semilla, "Escuela A" usa desde 1 (200 cartones) y "Escuela B" usa
+   * desde 201 (300 cartones). Como la secuencia es continua y sin duplicados,
+   * tramos que no se solapan nunca comparten un cartón.
+   */
+  desde?: number;
 }
 
 /** Resultado de generar un lote: los cartones y la semilla efectivamente usada. */

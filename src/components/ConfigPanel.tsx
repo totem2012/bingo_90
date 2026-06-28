@@ -1,7 +1,7 @@
 // Panel de configuración: cantidad, cartones por hoja, semilla y botón generar.
 
 import { useState } from "react";
-import { useBingo } from "../state/store.ts";
+import { proximoDesdeDe, useBingo } from "../state/store.ts";
 import { LogoUploader } from "./LogoUploader.tsx";
 
 // Colores predeterminados frecuentes (el usuario igual puede elegir uno libre).
@@ -21,16 +21,20 @@ export function ConfigPanel() {
     cantidad,
     cartonesPorHoja,
     semilla,
+    registro,
     generando,
     marca,
     setCantidad,
     setCartonesPorHoja,
+    setSemilla,
     setTitulo,
     setSubtitulo,
     setEvento,
     setSerie,
     setColor,
     nuevaSemilla,
+    deshacerUltimaTirada,
+    reiniciarCampana,
     generarPdf,
   } = useBingo();
 
@@ -57,7 +61,38 @@ export function ConfigPanel() {
     }
   }
 
+  // Texto local del campo de semilla (permite editarla para retomar una
+  // campaña existente). Se valida al salir del campo.
+  const [semillaTexto, setSemillaTexto] = useState(String(semilla));
+
+  function onSalirSemilla() {
+    const n = parseInt(semillaTexto, 10);
+    if (!Number.isInteger(n) || n < 0) {
+      setSemillaTexto(String(semilla));
+    } else if (n !== semilla) {
+      setSemilla(n);
+    }
+  }
+
+  function onNuevaSemilla() {
+    nuevaSemilla();
+    // El input es no-controlado respecto del store; lo sincronizamos a mano.
+    setSemillaTexto(String(useBingo.getState().semilla));
+  }
+
+  // La app decide dónde empieza la próxima tirada (continúa el historial).
+  const desde = proximoDesdeDe(registro);
+  const hasta = desde + cantidad - 1;
+  const totalImpreso = desde - 1;
+
   const muchos = cantidad > 1000;
+
+  const fmtFecha = (iso: string) =>
+    new Date(iso).toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    });
 
   return (
     <div className="flex flex-col gap-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -192,6 +227,17 @@ export function ConfigPanel() {
         )}
       </label>
 
+      {/* Tramo automático de esta tirada (lo decide la app, no el usuario) */}
+      <div className="rounded-lg border border-marca-200 bg-marca-50 px-3 py-2">
+        <span className="text-sm font-medium text-marca-800">
+          Esta tirada: cartones N° {desde} al {hasta}
+        </span>
+        <p className="mt-0.5 text-xs text-marca-700">
+          La app continúa automáticamente desde donde terminó la última tirada
+          de esta semilla. Imposible pisar cartones ya impresos.
+        </p>
+      </div>
+
       {/* Cartones por hoja */}
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-slate-600">
@@ -216,28 +262,91 @@ export function ConfigPanel() {
         </div>
       </div>
 
-      {/* Semilla */}
+      {/* Semilla = identidad de la campaña */}
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-slate-600">
-          Semilla del lote
+          Semilla de la campaña
         </span>
         <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-lg bg-slate-100 px-3 py-2 font-mono text-sm text-slate-600">
-            {semilla}
-          </code>
+          <input
+            type="number"
+            min={0}
+            value={semillaTexto}
+            onChange={(e) => setSemillaTexto(e.target.value)}
+            onBlur={onSalirSemilla}
+            className="w-full flex-1 rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm text-slate-700 outline-none focus:border-marca-500 focus:ring-2 focus:ring-marca-100"
+            title="Escribí la semilla de una campaña anterior para retomarla"
+          />
           <button
             type="button"
-            onClick={nuevaSemilla}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:border-slate-400"
-            title="Sortear una nueva variación"
+            onClick={onNuevaSemilla}
+            className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:border-slate-400"
+            title="Sortear una semilla nueva (campaña nueva)"
           >
             ↻ Nueva
           </button>
         </div>
         <span className="text-xs text-slate-400">
-          Misma semilla = mismos cartones (para reimprimir sin duplicar).
+          Misma semilla = misma campaña. Para repartir entre escuelas sin
+          repetir, dejá esta semilla fija y cambiá solo el título y la cantidad.
+          Anotala: escribiéndola acá retomás la campaña cuando quieras.
         </span>
       </div>
+
+      {/* Historial de tiradas de esta semilla */}
+      {registro.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-600">
+              Tiradas de esta semilla
+            </span>
+            <span className="text-xs text-slate-400">
+              {totalImpreso} cartones entregados
+            </span>
+          </div>
+          <ul className="flex flex-col gap-1">
+            {registro.map((t, i) => (
+              <li
+                key={i}
+                className="flex items-baseline justify-between gap-2 text-xs"
+              >
+                <span className="truncate font-medium text-slate-700">
+                  {t.titulo}
+                </span>
+                <span className="shrink-0 font-mono text-slate-500">
+                  N° {t.desde}–{t.hasta} · {fmtFecha(t.fecha)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={deshacerUltimaTirada}
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:border-slate-400"
+              title="Borrar la última tirada del historial"
+            >
+              ↶ Deshacer última
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  confirm(
+                    "¿Borrar todo el historial de esta semilla? La próxima tirada volverá a empezar en el cartón N° 1.",
+                  )
+                ) {
+                  reiniciarCampana();
+                }
+              }}
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-rose-600 hover:border-rose-400"
+              title="Vaciar el historial y empezar de cero"
+            >
+              Reiniciar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Generar */}
       <button

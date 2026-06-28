@@ -102,4 +102,36 @@ describe("generarLote", () => {
     expect(() => generarLote({ cantidad: -3 })).toThrow();
     expect(() => generarLote({ cantidad: 2.5 })).toThrow();
   });
+
+  it("rechaza 'desde' inválido", () => {
+    expect(() => generarLote({ cantidad: 5, desde: 0 })).toThrow();
+    expect(() => generarLote({ cantidad: 5, desde: -1 })).toThrow();
+    expect(() => generarLote({ cantidad: 5, desde: 1.5 })).toThrow();
+  });
+
+  it("'desde' toma el tramo continuo de la secuencia (sin recortar el inicio)", () => {
+    const semilla = 99;
+    const continuo = generarLote({ cantidad: 500, semilla });
+    const tramo = generarLote({ cantidad: 300, semilla, desde: 201 });
+    expect(tramo.cartones.map((c) => c.id)).toEqual(
+      continuo.cartones.slice(200, 500).map((c) => c.id),
+    );
+  });
+
+  it("misma semilla, títulos con tramos disjuntos NO comparten cartones", () => {
+    const semilla = 42;
+    const pepito = generarLote({ cantidad: 200, semilla, desde: 1 });
+    const ramon = generarLote({ cantidad: 300, semilla, desde: 201 });
+
+    expect(pepito.cartones).toHaveLength(200);
+    expect(ramon.cartones).toHaveLength(300);
+
+    const clave = (c: { filas: readonly (readonly (number | null)[])[] }) =>
+      c.filas.map((f) => f.map((x) => x ?? "_").join(",")).join("|");
+
+    const clavesPepito = new Set(pepito.cartones.map(clave));
+    for (const c of ramon.cartones) {
+      expect(clavesPepito.has(clave(c))).toBe(false);
+    }
+  });
 });

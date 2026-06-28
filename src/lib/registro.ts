@@ -1,0 +1,140 @@
+// ─────────────────────────────────────────────────────────────────────────
+// Registro de TIRADAS por semilla, persistido en el navegador (localStorage).
+//
+// ¿Para qué? Para repartir una misma semilla entre varios títulos SIN que el
+// usuario tenga que elegir a mano dónde empieza cada tanda (y sin riesgo de
+// pisar cartones ya impresos). La app recuerda cuántos cartones de esa semilla
+// ya se entregaron y la próxima tirada continúa automáticamente desde ahí.
+//
+// La secuencia de una semilla es continua y sin duplicados, así que tramos
+// consecutivos ([1..200], [201..400], …) nunca comparten un cartón.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Una tanda de cartones ya generada para un título, dentro de una semilla. */
+export interface Tirada {
+  /** Título/escuela al que se entregó (ej: "Escuela Pepito"). */
+  titulo: string;
+  /** Cuántos cartones llevó. */
+  cantidad: number;
+  /** Primer N° (1-based) dentro de la secuencia de la semilla. */
+  desde: number;
+  /** Último N° (inclusive). hasta = desde + cantidad - 1. */
+  hasta: number;
+  /** Fecha de generación en ISO (para mostrar en el historial). */
+  fecha: string;
+}
+
+/** Mapa semilla → lista de tiradas, tal como se guarda en localStorage. */
+type Registro = Record<string, Tirada[]>;
+
+const CLAVE_REGISTRO = "bingo90:registro:v1";
+const CLAVE_SEMILLA = "bingo90:semilla:v1";
+
+/** ¿Tenemos localStorage disponible? (SSR / modo privado viejo / tests). */
+function hayStorage(): boolean {
+  try {
+    return typeof localStorage !== "undefined";
+  } catch {
+    return false;
+  }
+}
+
+function leerRegistro(): Registro {
+  if (!hayStorage()) return {};
+  try {
+    const crudo = localStorage.getItem(CLAVE_REGISTRO);
+    return crudo ? (JSON.parse(crudo) as Registro) : {};
+  } catch {
+    return {};
+  }
+}
+
+function escribirRegistro(reg: Registro): void {
+  if (!hayStorage()) return;
+  try {
+    localStorage.setItem(CLAVE_REGISTRO, JSON.stringify(reg));
+  } catch {
+    /* sin persistencia: la app sigue funcionando en memoria */
+  }
+}
+
+/** Tiradas ya registradas para una semilla (ordenadas por aparición). */
+export function tiradasDe(semilla: number): Tirada[] {
+  return leerRegistro()[String(semilla)] ?? [];
+}
+
+/** Cuántos cartones de esa semilla ya se entregaron (suma de cantidades). */
+export function consumidos(tiradas: Tirada[]): number {
+  return tiradas.reduce((acc, t) => acc + t.cantidad, 0);
+}
+
+/** Próximo N° por el que debe empezar la siguiente tirada (1-based). */
+export function proximoDesde(semilla: number): number {
+  return consumidos(tiradasDe(semilla)) + 1;
+}
+
+/**
+ * Registra una tirada nueva al final de la semilla y devuelve la lista
+ * actualizada. El `desde` se calcula solo a partir de lo ya consumido.
+ */
+export function registrarTirada(
+  semilla: number,
+  titulo: string,
+  cantidad: number,
+): Tirada[] {
+  const reg = leerRegistro();
+  const clave = String(semilla);
+  const previas = reg[clave] ?? [];
+  const desde = consumidos(previas) + 1;
+  const tirada: Tirada = {
+    titulo: titulo.trim() || "(sin título)",
+    cantidad,
+    desde,
+    hasta: desde + cantidad - 1,
+    fecha: new Date().toISOString(),
+  };
+  reg[clave] = [...previas, tirada];
+  escribirRegistro(reg);
+  return reg[clave];
+}
+
+/** Borra la última tirada de la semilla (para corregir un error). */
+export function deshacerUltima(semilla: number): Tirada[] {
+  const reg = leerRegistro();
+  const clave = String(semilla);
+  const previas = reg[clave] ?? [];
+  reg[clave] = previas.slice(0, -1);
+  escribirRegistro(reg);
+  return reg[clave];
+}
+
+/** Borra todo el historial de una semilla (empezar la campaña de cero). */
+export function reiniciarSemilla(semilla: number): Tirada[] {
+  const reg = leerRegistro();
+  delete reg[String(semilla)];
+  escribirRegistro(reg);
+  return [];
+}
+
+/** Recuerda la última semilla usada para retomar la campaña al reabrir. */
+export function recordarSemilla(semilla: number): void {
+  if (!hayStorage()) return;
+  try {
+    localStorage.setItem(CLAVE_SEMILLA, String(semilla));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Última semilla usada (o null si es la primera vez). */
+export function semillaRecordada(): number | null {
+  if (!hayStorage()) return null;
+  try {
+    const v = localStorage.getItem(CLAVE_SEMILLA);
+    if (v === null) return null;
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 ? n : null;
+  } catch {
+    return null;
+  }
+}

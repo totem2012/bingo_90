@@ -22,6 +22,12 @@ function claveContenido(carton: Carton): string {
 /**
  * Genera `cantidad` cartones únicos. Si se pasa `semilla`, el lote completo
  * es reproducible (misma semilla + misma cantidad → mismos cartones).
+ *
+ * `desde` (1-based, por defecto 1) elige el tramo de la secuencia: se generan
+ * los cartones únicos en las posiciones [desde, desde + cantidad). Esto permite
+ * repartir UNA semilla entre varios títulos sin repetir: con la misma semilla,
+ * un título toma desde=1/cantidad=200 y otro desde=201/cantidad=300; al no
+ * solaparse los tramos de una secuencia sin duplicados, no comparten cartones.
  */
 export function generarLote(opciones: OpcionesGeneracion): LoteGenerado {
   const { cantidad } = opciones;
@@ -29,18 +35,30 @@ export function generarLote(opciones: OpcionesGeneracion): LoteGenerado {
     throw new Error("La cantidad debe ser un entero mayor o igual a 1");
   }
 
+  const desde = opciones.desde ?? 1;
+  if (!Number.isInteger(desde) || desde < 1) {
+    throw new Error("El número inicial (desde) debe ser un entero mayor o igual a 1");
+  }
+
   const semilla = opciones.semilla ?? semillaAleatoria();
   const rng = crearRng(semilla);
+
+  // Para devolver el tramo [desde, desde+cantidad) recorremos la secuencia
+  // desde el principio: descartamos los primeros `salto` cartones únicos y
+  // nos quedamos con los `cantidad` siguientes. Recorrer siempre desde el
+  // inicio es lo que garantiza que tramos de distintos títulos sean disjuntos.
+  const salto = desde - 1;
+  const total = salto + cantidad;
 
   const cartones: Carton[] = [];
   const clavesVistas = new Set<string>();
 
   // Cota de intentos por si pidieran una cantidad gigante (hay ~3,67×10¹⁸
   // cartones distintos, así que en la práctica casi nunca hay colisiones).
-  const maxIntentos = cantidad * 50 + 100;
+  const maxIntentos = total * 50 + 100;
   let intentos = 0;
 
-  while (cartones.length < cantidad) {
+  while (cartones.length < total) {
     const carton = generarCartonConRng(rng);
     const clave = claveContenido(carton);
     if (!clavesVistas.has(clave)) {
@@ -49,10 +67,10 @@ export function generarLote(opciones: OpcionesGeneracion): LoteGenerado {
     }
     if (++intentos > maxIntentos) {
       throw new Error(
-        `No se pudieron generar ${cantidad} cartones únicos tras ${intentos} intentos`,
+        `No se pudieron generar ${total} cartones únicos tras ${intentos} intentos`,
       );
     }
   }
 
-  return { cartones, semilla };
+  return { cartones: cartones.slice(salto), semilla };
 }
