@@ -21,7 +21,7 @@ export function contenidoQr(
     .join(",");
   const partes = [
     "BINGO90",
-    `N:${String(numero).padStart(4, "0")}`,
+    `N:${String(numero).padStart(6, "0")}`,
     serie.trim() ? `S:${serie.trim()}` : null,
     `ID:${carton.id}`,
     `#:${numeros}`,

@@ -62,7 +62,7 @@ export function CartonPreview({ carton, marca }: Props) {
         </span>
         <span className="text-[9px] font-bold text-slate-700">CARTÓN N°</span>
         <span className="text-2xl font-extrabold leading-none" style={{ color }}>
-          0001
+          000001
         </span>
         {marca.serie.trim() !== "" && (
           <span

@@ -325,7 +325,7 @@ export function dibujarUnidad(
   marca: MarcaResuelta,
   qr: PDFImage,
 ): void {
-  const numeroFmt = String(numero).padStart(4, "0");
+  const numeroFmt = String(numero).padStart(6, "0");
   const anchoTalon = rect.ancho * FRACCION_TALON;
   const xCorte = rect.left + anchoTalon;
 
