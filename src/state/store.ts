@@ -35,6 +35,29 @@ import {
   tiradasDe,
   type Tirada,
 } from "../lib/registro.ts";
+import {
+  agregarRango,
+  agregarVenta,
+  limpiarVentas,
+  quitarVenta,
+  ventasDe,
+  type DatosVenta,
+  type ResultadoRango,
+  type Venta,
+} from "../lib/ventas.ts";
+import {
+  deshacerUltimoPremio,
+  premiosDe,
+  registrarPremio,
+  reiniciarPremios,
+  type Premio,
+} from "../lib/premios.ts";
+import {
+  exportarCampana,
+  importarCampana,
+  nombreArchivoCampana,
+} from "../lib/campana.ts";
+import { elegibles, sortearUno } from "../core/sorteo.ts";
 
 export interface BingoState {
   /** Cantidad de cartones a generar en la próxima tirada. */
@@ -51,6 +74,12 @@ export interface BingoState {
   generando: boolean;
   /** Personalización de marca (título, color, logo). */
   marca: Marca;
+  /** Cartones vendidos de la semilla actual (candidatos al sorteo). */
+  ventas: Venta[];
+  /** Premios ya sorteados en la semilla actual. */
+  premios: Premio[];
+  /** Último premio sorteado, para destacarlo en pantalla. */
+  ultimoGanador: Premio | null;
 
   setCantidad: (n: number) => void;
   setCartonesPorHoja: (n: number) => void;
@@ -69,6 +98,30 @@ export interface BingoState {
   reiniciarCampana: () => void;
   /** Genera el PDF de la próxima tirada, lo descarga y lo registra. */
   generarPdf: () => Promise<void>;
+
+  // ── Ventas ──
+  /** Marca un cartón como vendido. */
+  venderUno: (numero: number, datos: DatosVenta) => void;
+  /** Marca todo un rango [desde, hasta] como vendido al mismo comprador. */
+  venderRango: (desde: number, hasta: number, datos: DatosVenta) => ResultadoRango;
+  /** Da de baja una venta (el cartón vuelve a figurar sin vender). */
+  anularVenta: (numero: number) => void;
+  /** Borra todas las ventas de la semilla actual. */
+  borrarVentas: () => void;
+
+  // ── Sorteo ──
+  /** Sortea un ganador entre los vendidos que todavía no ganaron. */
+  sortearGanador: (descripcion: string) => Premio | null;
+  /** Borra el último premio (el cartón vuelve al bombo). */
+  deshacerPremio: () => void;
+  /** Borra todo el historial de premios. */
+  borrarPremios: () => void;
+
+  // ── Campaña (respaldo / portabilidad) ──
+  /** Descarga un .json con semilla + tiradas + ventas + premios. */
+  exportar: () => void;
+  /** Carga una campaña desde el texto de un .json. Lanza si es inválido. */
+  importar: (texto: string) => void;
 }
 
 /** Próximo N° por el que arranca la siguiente tirada según lo ya consumido. */
@@ -91,6 +144,22 @@ function nombreArchivoPdf(titulo: string, desde: number, hasta: number): string 
   return `${base}-${desde}-${hasta}.pdf`;
 }
 
+/**
+ * Todo lo que depende de la semilla, leído de una sola vez. Cambiar de campaña
+ * tiene que mover registro, ventas y premios JUNTOS: si quedaran desfasados se
+ * podría sortear un cartón que pertenece a otra campaña.
+ */
+function estadoDeSemilla(semilla: number) {
+  return {
+    semilla,
+    registro: tiradasDe(semilla),
+    preview: generarCarton(semilla),
+    ventas: ventasDe(semilla),
+    premios: premiosDe(semilla),
+    ultimoGanador: null,
+  };
+}
+
 // Al abrir la app retomamos la última campaña usada (si la hay) para no perder
 // la cuenta de cartones ya entregados.
 const semillaInicial = semillaRecordada() ?? semillaAleatoria();
@@ -104,6 +173,9 @@ export const useBingo = create<BingoState>((set, get) => ({
   preview: generarCarton(semillaInicial),
   generando: false,
   marca: MARCA_INICIAL,
+  ventas: ventasDe(semillaInicial),
+  premios: premiosDe(semillaInicial),
+  ultimoGanador: null,
 
   setCantidad: (n) => set({ cantidad: Math.max(1, Math.floor(n || 1)) }),
 
@@ -112,7 +184,7 @@ export const useBingo = create<BingoState>((set, get) => ({
   setSemilla: (n) => {
     const semilla = Math.max(0, Math.floor(n || 0)) >>> 0;
     recordarSemilla(semilla);
-    set({ semilla, registro: tiradasDe(semilla), preview: generarCarton(semilla) });
+    set(estadoDeSemilla(semilla));
   },
 
   setTitulo: (titulo) => set((s) => ({ marca: { ...s.marca, titulo } })),
@@ -130,7 +202,7 @@ export const useBingo = create<BingoState>((set, get) => ({
   nuevaSemilla: () => {
     const semilla = semillaAleatoria();
     recordarSemilla(semilla);
-    set({ semilla, registro: tiradasDe(semilla), preview: generarCarton(semilla) });
+    set(estadoDeSemilla(semilla));
   },
 
   deshacerUltimaTirada: () => {
@@ -140,7 +212,15 @@ export const useBingo = create<BingoState>((set, get) => ({
 
   reiniciarCampana: () => {
     const { semilla } = get();
-    set({ registro: reiniciarSemilla(semilla) });
+    // Volver a empezar la campaña reimprime desde el N° 1, así que las ventas
+    // y los premios viejos quedarían apuntando a cartones que ahora le tocan a
+    // otra persona. Se limpia todo junto o no se limpia nada.
+    set({
+      registro: reiniciarSemilla(semilla),
+      ventas: limpiarVentas(semilla),
+      premios: reiniciarPremios(semilla),
+      ultimoGanador: null,
+    });
   },
 
   generarPdf: async () => {
@@ -170,5 +250,80 @@ export const useBingo = create<BingoState>((set, get) => ({
     } finally {
       set({ generando: false });
     }
+  },
+
+  // ── Ventas ────────────────────────────────────────────────────────────────
+
+  venderUno: (numero, datos) => {
+    const { semilla } = get();
+    set({ ventas: agregarVenta(semilla, numero, datos) });
+  },
+
+  venderRango: (desde, hasta, datos) => {
+    const { semilla } = get();
+    const resultado = agregarRango(semilla, desde, hasta, datos);
+    set({ ventas: resultado.ventas });
+    return resultado;
+  },
+
+  anularVenta: (numero) => {
+    const { semilla } = get();
+    set({ ventas: quitarVenta(semilla, numero) });
+  },
+
+  borrarVentas: () => {
+    const { semilla } = get();
+    set({ ventas: limpiarVentas(semilla) });
+  },
+
+  // ── Sorteo ────────────────────────────────────────────────────────────────
+
+  sortearGanador: (descripcion) => {
+    const { semilla, ventas, premios } = get();
+    // Los que ya ganaron salen del bombo: un cartón no puede llevarse dos premios.
+    const enJuego = elegibles(
+      ventas.map((v) => v.numero),
+      premios.map((p) => p.numero),
+    );
+    if (enJuego.length === 0) return null;
+
+    const numero = sortearUno(enJuego);
+    const venta = ventas.find((v) => v.numero === numero);
+    const actualizados = registrarPremio(semilla, {
+      descripcion,
+      numero,
+      // Snapshot: si después se edita la venta, lo cantado no cambia.
+      comprador: venta?.comprador ?? "",
+      telefono: venta?.telefono ?? "",
+    });
+    const ganador = actualizados[actualizados.length - 1];
+    set({ premios: actualizados, ultimoGanador: ganador });
+    return ganador;
+  },
+
+  deshacerPremio: () => {
+    const { semilla } = get();
+    set({ premios: deshacerUltimoPremio(semilla), ultimoGanador: null });
+  },
+
+  borrarPremios: () => {
+    const { semilla } = get();
+    set({ premios: reiniciarPremios(semilla), ultimoGanador: null });
+  },
+
+  // ── Campaña ───────────────────────────────────────────────────────────────
+
+  exportar: () => {
+    const { semilla } = get();
+    const datos = exportarCampana(semilla);
+    const bytes = new TextEncoder().encode(JSON.stringify(datos, null, 2));
+    descargarArchivo(bytes, nombreArchivoCampana(semilla), "application/json");
+  },
+
+  importar: (texto) => {
+    // JSON.parse y la validación lanzan: el componente muestra el mensaje.
+    const datos = importarCampana(JSON.parse(texto));
+    recordarSemilla(datos.semilla);
+    set(estadoDeSemilla(datos.semilla));
   },
 }));

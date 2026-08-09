@@ -116,6 +116,14 @@ export function reiniciarSemilla(semilla: number): Tirada[] {
   return [];
 }
 
+/** Reemplaza las tiradas de una semilla (lo usa el import de campaña). */
+export function reemplazarTiradas(semilla: number, tiradas: Tirada[]): Tirada[] {
+  const reg = leerRegistro();
+  reg[String(semilla)] = tiradas;
+  escribirRegistro(reg);
+  return tiradas;
+}
+
 /** Recuerda la última semilla usada para retomar la campaña al reabrir. */
 export function recordarSemilla(semilla: number): void {
   if (!hayStorage()) return;

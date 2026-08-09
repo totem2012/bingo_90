@@ -13,6 +13,8 @@ personalizables. Corre 100% en el navegador (sin servidor, sin cuentas).
 - [x] **Fase 4** — Personalización: logo + título + color en el PDF
 - [x] **Fase 4.5** — Talón (cupón de control) + N° secuencial + QR + encabezado completo
 - [x] **Fase 5** — Pulido: lazy-load de pdf-lib, manejo de errores, favicon, deploy
+- [x] **Fase 6** — Ventas y sorteo: registro de cartones vendidos, sorteo de
+      varios premios sin repetir ganador, y respaldo de campaña en `.json`
 
 ## Requisitos
 
@@ -30,10 +32,11 @@ npm run build      # build de producción (sitio estático)
 
 ## Arquitectura
 
-- `src/core/` — **dominio puro** (sin React ni DOM). Genera y valida cartones.
-  Es portable: el mismo código podría correr en un servidor Node.
+- `src/core/` — **dominio puro** (sin React ni DOM). Genera y valida cartones,
+  y sortea el ganador. Es portable: el mismo código podría correr en Node.
 - `src/pdf/` — render de las unidades (talón + cartón) a PDF con `pdf-lib` + QR.
-- `src/lib/` — modelo de marca y helpers del navegador.
+- `src/lib/` — modelo de marca, persistencia (tiradas, ventas, premios,
+  respaldo de campaña) y helpers del navegador.
 - `src/components/` — UI en React.
 - `src/state/` — estado de la app (Zustand).
 - `src/test/` — tests del dominio.
@@ -47,6 +50,30 @@ npm run build      # build de producción (sitio estático)
 
 El lote es **reproducible**: con la misma semilla se obtienen los mismos
 cartones (útil para reimprimir sin duplicar).
+
+## Ventas y sorteo
+
+La pestaña **Ventas y sorteo** cierra el ciclo después de imprimir:
+
+- **Cargar los vendidos**: por rango (“del 1 al 200 → Escuela Pepito”) o de a
+  uno con nombre, teléfono y vendedor. Solo se pueden vender cartones que ya
+  se imprimieron, y un N° no se puede vender dos veces.
+- **Sortear**: la app elige al azar entre los vendidos. Se pueden sortear
+  varios premios seguidos (1°, 2°, 3°…) y **el que ya ganó sale del bombo**,
+  así nadie se lleva dos. Queda el historial de quién ganó qué.
+- Al salir un ganador se muestra el **cartón regenerado** en pantalla, para
+  cotejarlo contra el papel que trae la persona.
+
+Como los cartones son deterministas a partir de la semilla, solo se guarda el
+**N° de cartón**: los 15 números se regeneran cuando hacen falta.
+
+### Respaldo de la campaña
+
+Todo se guarda en el navegador (`localStorage`). Si se limpia el caché se
+pierden la numeración y las ventas, así que conviene usar
+**Exportar campaña** (en el panel de configuración): baja un `.json` con
+semilla + tiradas + ventas + premios. **Importar** lo restaura, y también sirve
+para sortear desde otra computadora o celular.
 
 ### Estructura de cada unidad impresa
 

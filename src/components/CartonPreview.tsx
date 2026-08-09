@@ -11,6 +11,8 @@ import { contenidoQr } from "../pdf/qr.ts";
 interface Props {
   carton: Carton;
   marca: Marca;
+  /** N° a mostrar en el talón. Por defecto 1 (vista previa del primer cartón). */
+  numero?: number;
 }
 
 /** Convierte #rrggbb a rgba con la opacidad dada (para tintes suaves). */
@@ -28,17 +30,15 @@ function hexARgba(hex: string, alpha: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
-const NUMERO_DEMO = 1;
-
-export function CartonPreview({ carton, marca }: Props) {
+export function CartonPreview({ carton, marca, numero = 1 }: Props) {
   const [qr, setQr] = useState("");
 
   useEffect(() => {
-    const texto = contenidoQr(carton, NUMERO_DEMO, marca.serie);
+    const texto = contenidoQr(carton, numero, marca.serie);
     QRCode.toDataURL(texto, { margin: 1, width: 160 })
       .then(setQr)
       .catch(() => setQr(""));
-  }, [carton, marca.serie]);
+  }, [carton, marca.serie, numero]);
 
   const color = marca.color;
   const hayEncabezado =
@@ -62,7 +62,7 @@ export function CartonPreview({ carton, marca }: Props) {
         </span>
         <span className="text-[9px] font-bold text-slate-700">CARTÓN N°</span>
         <span className="text-2xl font-extrabold leading-none" style={{ color }}>
-          000001
+          {String(numero).padStart(6, "0")}
         </span>
         {marca.serie.trim() !== "" && (
           <span

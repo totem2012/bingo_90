@@ -6,3 +6,4 @@ export { generarCarton, generarCartonConRng } from "./generator.ts";
 export { generarLote } from "./batch.ts";
 export { validarCarton, esCartonValido } from "./validator.ts";
 export type { ResultadoValidacion } from "./validator.ts";
+export { elegibles, sortearUno } from "./sorteo.ts";

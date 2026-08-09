@@ -1,6 +1,6 @@
 // Panel de configuración: cantidad, cartones por hoja, semilla y botón generar.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { proximoDesdeDe, useBingo } from "../state/store.ts";
 import { LogoUploader } from "./LogoUploader.tsx";
 
@@ -36,6 +36,8 @@ export function ConfigPanel() {
     deshacerUltimaTirada,
     reiniciarCampana,
     generarPdf,
+    exportar,
+    importar,
   } = useBingo();
 
   const claseInput =
@@ -78,6 +80,38 @@ export function ConfigPanel() {
     nuevaSemilla();
     // El input es no-controlado respecto del store; lo sincronizamos a mano.
     setSemillaTexto(String(useBingo.getState().semilla));
+  }
+
+  // Respaldo / portabilidad de la campaña completa (semilla + tiradas +
+  // ventas + premios) en un .json que sube y baja el propio usuario.
+  const archivoRef = useRef<HTMLInputElement>(null);
+
+  async function onImportar(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Permite volver a elegir el mismo archivo si hubo un error.
+    e.target.value = "";
+
+    if (
+      !confirm(
+        "Importar va a reemplazar las tiradas, ventas y premios guardados de esa campaña. ¿Seguir?",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      importar(await file.text());
+      setSemillaTexto(String(useBingo.getState().semilla));
+      alert("Campaña importada correctamente.");
+    } catch (error) {
+      console.error(error);
+      alert(
+        error instanceof Error
+          ? `No se pudo importar: ${error.message}`
+          : "No se pudo importar el archivo.",
+      );
+    }
   }
 
   // La app decide dónde empieza la próxima tirada (continúa el historial).
@@ -293,6 +327,43 @@ export function ConfigPanel() {
         </span>
       </div>
 
+      {/* Respaldo y portabilidad de la campaña */}
+      <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <span className="text-sm font-medium text-slate-600">
+          Respaldo de la campaña
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={exportar}
+            className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400"
+            title="Bajar un .json con la semilla, las tiradas, las ventas y los premios"
+          >
+            ↓ Exportar
+          </button>
+          <button
+            type="button"
+            onClick={() => archivoRef.current?.click()}
+            className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400"
+            title="Cargar una campaña desde un .json exportado antes"
+          >
+            ↑ Importar
+          </button>
+          <input
+            ref={archivoRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={onImportar}
+            className="hidden"
+          />
+        </div>
+        <span className="text-xs text-slate-400">
+          Guardá el archivo: si se limpia el caché del navegador perdés la
+          numeración y las ventas. También sirve para sortear desde otra
+          computadora.
+        </span>
+      </div>
+
       {/* Historial de tiradas de esta semilla */}
       {registro.length > 0 && (
         <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -333,7 +404,7 @@ export function ConfigPanel() {
               onClick={() => {
                 if (
                   confirm(
-                    "¿Borrar todo el historial de esta semilla? La próxima tirada volverá a empezar en el cartón N° 1.",
+                    "¿Borrar todo el historial de esta semilla?\n\nSe borran también las VENTAS y los PREMIOS cargados, y la próxima tirada volverá a empezar en el cartón N° 1.",
                   )
                 ) {
                   reiniciarCampana();
