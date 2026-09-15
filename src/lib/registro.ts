@@ -27,17 +27,10 @@ export interface Tirada {
 /** Mapa semilla → lista de tiradas, tal como se guarda en localStorage. */
 type Registro = Record<string, Tirada[]>;
 
+import { escribirClave, leerClave } from "./persistencia.ts";
+
 const CLAVE_REGISTRO = "bingo90:registro:v1";
 const CLAVE_SEMILLA = "bingo90:semilla:v1";
-
-/** ¿Tenemos localStorage disponible? (SSR / modo privado viejo / tests). */
-function hayStorage(): boolean {
-  try {
-    return typeof localStorage !== "undefined";
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Lee el blob completo de la clave. `ilegible` distingue dos cosas que antes se
@@ -50,13 +43,7 @@ function hayStorage(): boolean {
  * ilegible: ahí nunca hubo nada guardado y la app funciona en memoria.
  */
 function leerCrudo(): { reg: Registro; ilegible: boolean } {
-  if (!hayStorage()) return { reg: {}, ilegible: false };
-  let crudo: string | null;
-  try {
-    crudo = localStorage.getItem(CLAVE_REGISTRO);
-  } catch {
-    return { reg: {}, ilegible: false };
-  }
+  const crudo = leerClave(CLAVE_REGISTRO);
   if (!crudo) return { reg: {}, ilegible: false };
   try {
     const datos: unknown = JSON.parse(crudo);
@@ -74,12 +61,9 @@ function leerRegistro(): Registro {
 }
 
 function escribirRegistro(reg: Registro): void {
-  if (!hayStorage()) return;
-  try {
-    localStorage.setItem(CLAVE_REGISTRO, JSON.stringify(reg));
-  } catch {
-    /* sin persistencia: la app sigue funcionando en memoria */
-  }
+  // Si el navegador no guarda, la app sigue andando en memoria; que el usuario
+  // se entere es responsabilidad de persistencia.ts (ver App.tsx).
+  escribirClave(CLAVE_REGISTRO, JSON.stringify(reg));
 }
 
 /**
@@ -213,23 +197,13 @@ export function reemplazarTiradas(semilla: number, tiradas: Tirada[]): Tirada[] 
 
 /** Recuerda la última semilla usada para retomar la campaña al reabrir. */
 export function recordarSemilla(semilla: number): void {
-  if (!hayStorage()) return;
-  try {
-    localStorage.setItem(CLAVE_SEMILLA, String(semilla));
-  } catch {
-    /* ignore */
-  }
+  escribirClave(CLAVE_SEMILLA, String(semilla));
 }
 
 /** Última semilla usada (o null si es la primera vez). */
 export function semillaRecordada(): number | null {
-  if (!hayStorage()) return null;
-  try {
-    const v = localStorage.getItem(CLAVE_SEMILLA);
-    if (v === null) return null;
-    const n = Number(v);
-    return Number.isInteger(n) && n >= 0 ? n : null;
-  } catch {
-    return null;
-  }
+  const v = leerClave(CLAVE_SEMILLA);
+  if (v === null) return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 ? n : null;
 }

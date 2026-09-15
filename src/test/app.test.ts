@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { registrarTirada } from "../lib/registro.ts";
 import { agregarRango } from "../lib/ventas.ts";
+import { reiniciarPersistencia } from "../lib/persistencia.ts";
 
 // Mock mínimo de localStorage para renderizar la app fuera del navegador.
 function instalarLocalStorage(): void {
@@ -100,5 +101,58 @@ describe("aviso de storage ilegible", () => {
     const html = await renderizarApp();
 
     expect(html).not.toMatch(/No se pudo leer/);
+  });
+});
+
+describe("aviso de que el navegador no guarda", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+    localStorage.setItem("bingo90:semilla:v1", String(SEMILLA));
+  });
+
+  afterEach(() => {
+    instalarLocalStorage();
+    reiniciarPersistencia();
+  });
+
+  it("avisa y dice que exporte el respaldo, sin botón para ocultarlo", async () => {
+    reiniciarPersistencia();
+    // @ts-expect-error: simulamos un navegador sin localStorage.
+    delete globalThis.localStorage;
+
+    const html = await renderizarApp();
+
+    expect(html).toMatch(/Este navegador no está guardando nada/);
+    expect(html).toMatch(/Exportá el respaldo/);
+    // Los otros dos avisos se pueden dar por enterados; este no.
+    expect(html).not.toMatch(/Entendido/);
+  });
+
+  it("si falla el guardado, el texto es el de la cuota", async () => {
+    reiniciarPersistencia();
+    const data = new Map<string, string>();
+    // @ts-expect-error: localStorage que lee pero no guarda.
+    globalThis.localStorage = {
+      getItem: (k: string) => (data.has(k) ? data.get(k)! : null),
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+      removeItem: () => {},
+      clear: () => data.clear(),
+    };
+
+    const html = await renderizarApp();
+
+    expect(html).toMatch(/No se pudo guardar lo último/);
+    expect(html).toMatch(/Exportá el respaldo/);
+  });
+
+  it("una campaña sana no lo dispara", async () => {
+    reiniciarPersistencia();
+    registrarTirada(SEMILLA, "Escuela Pepito", 100);
+
+    const html = await renderizarApp();
+
+    expect(html).not.toMatch(/no está guardando nada|No se pudo guardar/);
   });
 });

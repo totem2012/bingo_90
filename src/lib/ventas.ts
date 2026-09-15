@@ -29,16 +29,9 @@ export type DatosVenta = Pick<Venta, "comprador" | "telefono" | "vendedor">;
 /** Mapa semilla → ventas, tal como se guarda en localStorage. */
 type RegistroVentas = Record<string, Venta[]>;
 
-const CLAVE_VENTAS = "bingo90:ventas:v1";
+import { escribirClave, leerClave } from "./persistencia.ts";
 
-/** ¿Tenemos localStorage disponible? (SSR / modo privado viejo / tests). */
-function hayStorage(): boolean {
-  try {
-    return typeof localStorage !== "undefined";
-  } catch {
-    return false;
-  }
-}
+const CLAVE_VENTAS = "bingo90:ventas:v1";
 
 /**
  * Lee el blob completo de la clave. `ilegible` distingue dos cosas que antes se
@@ -51,13 +44,7 @@ function hayStorage(): boolean {
  * ilegible: ahí nunca hubo nada guardado y la app funciona en memoria.
  */
 function leerCrudo(): { reg: RegistroVentas; ilegible: boolean } {
-  if (!hayStorage()) return { reg: {}, ilegible: false };
-  let crudo: string | null;
-  try {
-    crudo = localStorage.getItem(CLAVE_VENTAS);
-  } catch {
-    return { reg: {}, ilegible: false };
-  }
+  const crudo = leerClave(CLAVE_VENTAS);
   if (!crudo) return { reg: {}, ilegible: false };
   try {
     const datos: unknown = JSON.parse(crudo);
@@ -75,12 +62,9 @@ function leerTodo(): RegistroVentas {
 }
 
 function escribirTodo(reg: RegistroVentas): void {
-  if (!hayStorage()) return;
-  try {
-    localStorage.setItem(CLAVE_VENTAS, JSON.stringify(reg));
-  } catch {
-    /* sin persistencia: la app sigue funcionando en memoria */
-  }
+  // Si el navegador no guarda, la app sigue andando en memoria; que el usuario
+  // se entere es responsabilidad de persistencia.ts (ver App.tsx).
+  escribirClave(CLAVE_VENTAS, JSON.stringify(reg));
 }
 
 /** Ordena por N° de cartón para que la lista se lea siempre igual. */

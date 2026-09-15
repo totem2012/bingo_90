@@ -58,6 +58,20 @@ import {
   nombreArchivoCampana,
 } from "../lib/campana.ts";
 import { elegibles, sortearUno } from "../core/sorteo.ts";
+import {
+  alCambiarPersistencia,
+  estadoPersistencia,
+  type EstadoPersistencia,
+} from "../lib/persistencia.ts";
+
+/**
+ * Semilla más grande que se puede usar. El generador la consume como uint32
+ * (ver core/rng.ts), así que más allá de este tope se envolvería y el número
+ * que el usuario anota para retomar la campaña dejaría de ser el que quedó
+ * guardado. Lo exporta el store para que la UI valide contra el mismo tope que
+ * hace cumplir la capa de datos, y no contra una copia suya.
+ */
+export const SEMILLA_MAXIMA = 4294967295; // 2³² − 1
 
 /**
  * Resultado de intentar deshacer una tirada. Cuando no se puede, el `motivo`
@@ -99,9 +113,17 @@ export interface BingoState {
    * una campaña nueva.
    */
   datosIlegibles: boolean;
+  /**
+   * Si el navegador está guardando de verdad. A diferencia de los otros dos
+   * avisos, este no habla de algo que ya pasó sino de algo que está por pasar:
+   * mientras esté mal, todo lo que se imprima y se venda se pierde al cerrar
+   * la pestaña. Es el único que se puede prevenir exportando el respaldo.
+   */
+  persistencia: EstadoPersistencia;
 
   setCantidad: (n: number) => void;
   setCartonesPorHoja: (n: number) => void;
+  /** Cambia de campaña. Lanza si la semilla no es un entero válido. */
   setSemilla: (n: number) => void;
   setTitulo: (titulo: string) => void;
   setSubtitulo: (subtitulo: string) => void;
@@ -205,15 +227,25 @@ export const useBingo = create<BingoState>((set, get) => ({
   // salen de la misma lectura que usa cambiar de campaña, para que abrir la
   // app y cambiar de semilla nunca den estados distintos.
   ...estadoDeSemilla(semillaInicial),
+  // Después de las lecturas de arriba: si el navegador no deja guardar, ya
+  // quedó registrado al intentar leer.
+  persistencia: estadoPersistencia(),
 
   setCantidad: (n) => set({ cantidad: Math.max(1, Math.floor(n || 1)) }),
 
   setCartonesPorHoja: (n) => set({ cartonesPorHoja: n }),
 
   setSemilla: (n) => {
-    const semilla = Math.max(0, Math.floor(n || 0)) >>> 0;
-    recordarSemilla(semilla);
-    set(estadoDeSemilla(semilla));
+    // Antes esto era `>>> 0`: una semilla de más de 2³² se envolvía en
+    // silencio y el usuario anotaba un número que no era el de su campaña.
+    // Ahora el tope lo hace cumplir el store, no el formulario.
+    if (!Number.isInteger(n) || n < 0 || n > SEMILLA_MAXIMA) {
+      throw new Error(
+        `La semilla tiene que ser un número entero entre 0 y ${SEMILLA_MAXIMA}.`,
+      );
+    }
+    recordarSemilla(n);
+    set(estadoDeSemilla(n));
   },
 
   setTitulo: (titulo) => set((s) => ({ marca: { ...s.marca, titulo } })),
@@ -400,3 +432,9 @@ export const useBingo = create<BingoState>((set, get) => ({
     set(estadoDeSemilla(datos.semilla));
   },
 }));
+
+// El estado de persistencia lo descubren los módulos de lib/ cuando leen o
+// escriben, en cualquier momento de la sesión (la cuota se puede llenar
+// recién en la tirada 12). Una suscripción evita tener que acordarse de
+// refrescarlo en cada acción que escribe.
+alCambiarPersistencia((estado) => useBingo.setState({ persistencia: estado }));

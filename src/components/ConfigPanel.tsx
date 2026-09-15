@@ -1,13 +1,8 @@
 // Panel de configuración: cantidad, cartones por hoja, semilla y botón generar.
 
 import { useRef, useState } from "react";
-import { proximoDesdeDe, useBingo } from "../state/store.ts";
+import { proximoDesdeDe, SEMILLA_MAXIMA, useBingo } from "../state/store.ts";
 import { LogoUploader } from "./LogoUploader.tsx";
-
-// La semilla se guarda como uint32 (`>>> 0` en el store): más allá de este tope
-// se envolvería en silencio y el número que el usuario anota dejaría de ser el
-// que quedó guardado, así que la campaña no se podría retomar.
-const SEMILLA_MAX = 4294967295; // 2³² − 1
 
 // Colores predeterminados frecuentes (el usuario igual puede elegir uno libre).
 const COLORES_PRESET: { hex: string; nombre: string }[] = [
@@ -81,12 +76,12 @@ export function ConfigPanel() {
       setErrorSemilla(null);
       return;
     }
-    if (n > SEMILLA_MAX) {
-      // Cortamos acá: si la mandáramos al store se envolvería a uint32 y el
-      // campo seguiría mostrando el número escrito, que ya no sería el real.
+    if (n > SEMILLA_MAXIMA) {
+      // Cortamos acá para poder explicarlo en el campo: el store también lo
+      // rechaza (lanza), pero acá el usuario ve por qué y con qué se quedó.
       setSemillaTexto(String(semilla));
       setErrorSemilla(
-        `La semilla más grande posible es ${SEMILLA_MAX}. Se dejó la anterior.`,
+        `La semilla más grande posible es ${SEMILLA_MAXIMA}. Se dejó la anterior.`,
       );
       return;
     }
@@ -329,7 +324,7 @@ export function ConfigPanel() {
           <input
             type="number"
             min={0}
-            max={SEMILLA_MAX}
+            max={SEMILLA_MAXIMA}
             value={semillaTexto}
             onChange={(e) => setSemillaTexto(e.target.value)}
             onBlur={onSalirSemilla}

@@ -17,6 +17,7 @@ export default function App() {
   const marca = useBingo((s) => s.marca);
   const registrosDanados = useBingo((s) => s.registrosDanados);
   const datosIlegibles = useBingo((s) => s.datosIlegibles);
+  const persistencia = useBingo((s) => s.persistencia);
   const ocultarAvisoDatos = useBingo((s) => s.ocultarAvisoDatos);
   const [vista, setVista] = useState<Vista>("generar");
 
@@ -52,6 +53,50 @@ export default function App() {
           </nav>
         </div>
       </header>
+
+      {/*
+        Este aviso no habla del pasado sino del futuro: mientras el navegador
+        no guarde, todo lo que se imprima y se venda se pierde al cerrar la
+        pestaña. Por eso va primero, en rojo y SIN botón para ocultarlo: los
+        otros dos avisan algo que ya pasó y se pueden dar por enterados, este
+        describe una situación que sigue activa y que todavía se puede
+        prevenir exportando el respaldo.
+      */}
+      {persistencia !== "ok" && (
+        <div className="border-b-2 border-rose-400 bg-rose-50">
+          <div className="mx-auto flex max-w-5xl items-start gap-3 px-6 py-3">
+            <span aria-hidden="true" className="text-lg leading-tight">
+              🛑
+            </span>
+            <p className="flex-1 text-sm text-rose-900">
+              {persistencia === "sin-storage" ? (
+                <>
+                  <strong className="font-semibold">
+                    Este navegador no está guardando nada.
+                  </strong>{" "}
+                  Puede ser una ventana de incógnito o tener el almacenamiento
+                  bloqueado. La app funciona igual, pero al cerrar la pestaña
+                  se pierde la numeración de los cartones que imprimas y las
+                  ventas que cargues.
+                </>
+              ) : (
+                <>
+                  <strong className="font-semibold">
+                    No se pudo guardar lo último que hiciste.
+                  </strong>{" "}
+                  Puede que no quede espacio en el navegador. Lo que ves en
+                  pantalla está bien, pero no quedó guardado: al cerrar la
+                  pestaña se pierde.
+                </>
+              )}{" "}
+              <strong className="font-semibold">
+                Exportá el respaldo (.json) antes de cerrar
+              </strong>{" "}
+              y, si ya imprimiste, anotá hasta qué N° llegaste.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/*
         Al leer la campaña se descarta lo que esté dañado para que la app pueda

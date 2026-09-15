@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { useBingo as UseBingo } from "../state/store.ts";
-import { registrarTirada, tiradasDe } from "../lib/registro.ts";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { SEMILLA_MAXIMA, type useBingo as UseBingo } from "../state/store.ts";
+import { registrarTirada, semillaRecordada, tiradasDe } from "../lib/registro.ts";
 import { agregarRango, ventasDe, type DatosVenta } from "../lib/ventas.ts";
 import { registrarPremio } from "../lib/premios.ts";
+import { reiniciarPersistencia } from "../lib/persistencia.ts";
 
 // Mock mínimo de localStorage para correr el store fuera del navegador.
 function instalarLocalStorage(): void {
@@ -310,5 +311,96 @@ describe("datosIlegibles", () => {
 
     expect(useBingo.getState().datosIlegibles).toBe(false);
     expect(localStorage.getItem("bingo90:premios:v1")).toBe("{no es json");
+  });
+});
+
+/** localStorage al que se le puede romper el guardado. */
+function instalarLocalStorageQueNoGuarda(): void {
+  const data = new Map<string, string>();
+  // @ts-expect-error: definimos un localStorage simplificado para el test.
+  globalThis.localStorage = {
+    getItem: (k: string) => (data.has(k) ? data.get(k)! : null),
+    setItem: () => {
+      throw new Error("QuotaExceededError");
+    },
+    removeItem: (k: string) => void data.delete(k),
+    clear: () => data.clear(),
+  };
+}
+
+describe("aviso de persistencia", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+    reiniciarPersistencia();
+  });
+
+  afterEach(() => {
+    instalarLocalStorage();
+    reiniciarPersistencia();
+  });
+
+  it("con un navegador que guarda, no avisa nada", async () => {
+    sembrarCampana();
+    const useBingo = await cargarStore();
+    expect(useBingo.getState().persistencia).toBe("ok");
+  });
+
+  it("sin localStorage avisa desde que abre, antes de imprimir nada", async () => {
+    // @ts-expect-error: simulamos un navegador sin localStorage.
+    delete globalThis.localStorage;
+
+    const useBingo = await cargarStore();
+
+    expect(useBingo.getState().persistencia).toBe("sin-storage");
+  });
+
+  it("si el guardado falla en mitad de la sesión, el aviso aparece solo", async () => {
+    registrarTirada(SEMILLA, "Escuela Pepito", 100);
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+    expect(useBingo.getState().persistencia).toBe("ok");
+
+    // Se llena la cuota recién ahora, cargando una venta.
+    instalarLocalStorageQueNoGuarda();
+    useBingo.getState().venderUno(5, PEPITO);
+
+    // La venta se ve en pantalla (la app sigue andando en memoria)…
+    expect(useBingo.getState().ventas).toHaveLength(1);
+    // …pero el usuario se entera de que no quedó guardada.
+    expect(useBingo.getState().persistencia).toBe("error-al-guardar");
+  });
+});
+
+describe("setSemilla", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+  });
+
+  it("acepta el rango válido, incluidos los bordes", async () => {
+    const useBingo = await cargarStore();
+
+    useBingo.getState().setSemilla(0);
+    expect(useBingo.getState().semilla).toBe(0);
+
+    useBingo.getState().setSemilla(SEMILLA_MAXIMA);
+    expect(useBingo.getState().semilla).toBe(SEMILLA_MAXIMA);
+  });
+
+  it("rechaza una semilla fuera de rango en vez de envolverla en silencio", async () => {
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(123);
+
+    // 2³² se envolvía a 0: el usuario anotaba 4294967296 y se guardaba otra
+    // campaña, así que no podía retomar la suya.
+    expect(() => useBingo.getState().setSemilla(SEMILLA_MAXIMA + 1)).toThrow(
+      /entero entre 0/,
+    );
+    expect(() => useBingo.getState().setSemilla(-1)).toThrow();
+    expect(() => useBingo.getState().setSemilla(1.5)).toThrow();
+    expect(() => useBingo.getState().setSemilla(NaN)).toThrow();
+
+    // Y la campaña anterior quedó intacta.
+    expect(useBingo.getState().semilla).toBe(123);
+    expect(semillaRecordada()).toBe(123);
   });
 });
