@@ -4,43 +4,6 @@ Herramienta web para generar cartones únicos de **bingo de 90 bolas** y
 exportarlos a **PDF listo para imprimir**, con **logo y título del negocio**
 personalizables. Corre 100% en el navegador (sin servidor, sin cuentas).
 
-## Estado por fases
-
-- [x] **Fase 0** — Arquitectura y diseño
-- [x] **Fase 1** — Dominio (`src/core`): generador + validador + tests
-- [x] **Fase 2** — Render a PDF (`src/pdf`) + script de ejemplo
-- [x] **Fase 3** — UI (configuración + vista previa en vivo + descarga)
-- [x] **Fase 4** — Personalización: logo + título + color en el PDF
-- [x] **Fase 4.5** — Talón (cupón de control) + N° secuencial + QR + encabezado completo
-- [x] **Fase 5** — Pulido: lazy-load de pdf-lib, manejo de errores, favicon, deploy
-- [x] **Fase 6** — Ventas y sorteo: registro de cartones vendidos, sorteo de
-      varios premios sin repetir ganador, y respaldo de campaña en `.json`
-
-## Requisitos
-
-- **Node.js 18+** y npm.
-
-## Comandos
-
-```bash
-npm install        # instalar dependencias
-npm test           # correr los tests (dominio + PDF) con Vitest
-npm run ejemplo    # generar un PDF de ejemplo (ejemplo.pdf) para revisarlo
-npm run dev        # levantar la app en desarrollo (Fase 3 en adelante)
-npm run build      # build de producción (sitio estático)
-```
-
-## Arquitectura
-
-- `src/core/` — **dominio puro** (sin React ni DOM). Genera y valida cartones,
-  y sortea el ganador. Es portable: el mismo código podría correr en Node.
-- `src/pdf/` — render de las unidades (talón + cartón) a PDF con `pdf-lib` + QR.
-- `src/lib/` — modelo de marca, persistencia (tiradas, ventas, premios,
-  respaldo de campaña) y helpers del navegador.
-- `src/components/` — UI en React.
-- `src/state/` — estado de la app (Zustand).
-- `src/test/` — tests del dominio.
-
 ### Reglas del cartón de 90 bolas
 
 - 3 filas × 9 columnas; 15 números y 12 celdas vacías.
@@ -90,21 +53,6 @@ desprende por la línea de corte punteada:
 
 La app es un **sitio estático** (no necesita servidor). El build se genera en
 la carpeta `dist/`:
-
-```bash
-npm run build      # genera dist/
-```
-
-Opciones para publicarlo gratis:
-
-1. **Netlify Drop (lo más rápido, sin cuenta):**
-   entrá a <https://app.netlify.com/drop> y arrastrá la carpeta `dist/`.
-   Te da una URL pública al instante.
-
-2. **Vercel / Netlify / Cloudflare Pages (con repo Git):**
-   conectá el repositorio y configurá:
-   - Build command: `npm run build`
-   - Output directory: `dist`
 
 No hace falta ninguna variable de entorno: todo corre en el navegador y el
 logo del cliente nunca sale de su máquina.
