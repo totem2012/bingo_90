@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { generarLote } from "../core/batch.ts";
 import { construirPdf } from "../pdf/buildPdf.ts";
@@ -26,6 +26,28 @@ describe("construirPdf", () => {
     const bytes = await construirPdf(cartones, { cartonesPorHoja: 6 });
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBe(1);
+  });
+
+  // `construirPdf` corta cada 10 cartones para devolverle el control al
+  // navegador y que la pantalla no se congele. Ese corte no puede cambiar el
+  // archivo: con el mismo lote, los bytes tienen que ser idénticos. Usamos 13
+  // cartones para que la generación cruce un corte de tanda, y congelamos SOLO
+  // el reloj (el PDF guarda la fecha de creación dentro de un stream
+  // comprimido, así que si corre el reloj los bytes cambian por eso y no por
+  // el corte). Los timers quedan reales a propósito: falsearlos taparía un
+  // cuelgue si algún día la pausa vuelve a hacerse con setTimeout.
+  it("es determinista: el mismo lote da exactamente los mismos bytes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T12:00:00Z"));
+    try {
+      const { cartones } = generarLote({ cantidad: 13, semilla: 42 });
+      const unos = await construirPdf(cartones);
+      const otros = await construirPdf(cartones);
+      expect(otros.byteLength).toBe(unos.byteLength);
+      expect(Buffer.from(otros).equals(Buffer.from(unos))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rechaza un lote vacío", async () => {

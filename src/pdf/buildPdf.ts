@@ -58,6 +58,41 @@ const MARCA_VACIA: Marca = {
 };
 
 /**
+ * Cada cuántas unidades le devolvemos el control al navegador. A ~25 ms por
+ * cartón, 10 deja tandas de ~250 ms. Probé con 4 y el bloqueo más largo no
+ * bajó (280 ms vs 271 ms con 50 cartones): lo que queda ya no es el loop sino
+ * el `doc.save()` final, que es de pdf-lib y no se puede cortar desde acá. Así
+ * que 10, que hace menos pausas para el mismo resultado.
+ */
+const CARTONES_POR_TANDA = 10;
+
+/**
+ * Devuelve el control al hilo principal.
+ *
+ * Tiene que ser una MACROtarea: con `await Promise.resolve()` (microtarea) el
+ * navegador no llega a repintar, que es justamente lo que hace que la pantalla
+ * se vea congelada.
+ *
+ * Y tiene que ser MessageChannel y no `setTimeout`, porque Chrome estrangula
+ * los timers a uno por segundo en las pestañas que no están a la vista: con
+ * `setTimeout(0)`, dejar el PDF generando e irse a otra pestaña multiplicaba
+ * el tiempo total (medido con 200 cartones: 7,7 s → 25,5 s). Los mensajes de
+ * MessageChannel no se estrangulan. Es el mismo motivo por el que el
+ * scheduler de React usa MessageChannel.
+ */
+function cederControl(): Promise<void> {
+  return new Promise((resolve) => {
+    const canal = new MessageChannel();
+    canal.port1.onmessage = () => {
+      canal.port1.close();
+      canal.port2.close();
+      resolve();
+    };
+    canal.port2.postMessage(undefined);
+  });
+}
+
+/**
  * Construye un PDF con todas las unidades y devuelve sus bytes.
  */
 export async function construirPdf(
@@ -112,6 +147,15 @@ export async function construirPdf(
     const qrImg = await doc.embedPng(dataUrlABytes(await generarQrDataUrl(textoQr)));
 
     dibujarUnidad(page, fuentes, cartones[i], numero, rects[i % porHoja], marcaResuelta, qrImg);
+
+    if ((i + 1) % CARTONES_POR_TANDA === 0) {
+      await cederControl();
+      // Acá va el aviso de progreso cuando se cablee la barra: un
+      // `onProgreso?: (hechos: number, total: number) => void` en OpcionesPdf,
+      // llamado con (i + 1, cartones.length). Tiene que ser en este punto: es
+      // el único momento en que el navegador puede repintar, así que avisar en
+      // cualquier otro lado no se vería hasta que el PDF ya estuviera listo.
+    }
   }
 
   return doc.save();
