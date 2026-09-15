@@ -4,6 +4,11 @@ import { useRef, useState } from "react";
 import { proximoDesdeDe, useBingo } from "../state/store.ts";
 import { LogoUploader } from "./LogoUploader.tsx";
 
+// La semilla se guarda como uint32 (`>>> 0` en el store): más allá de este tope
+// se envolvería en silencio y el número que el usuario anota dejaría de ser el
+// que quedó guardado, así que la campaña no se podría retomar.
+const SEMILLA_MAX = 4294967295; // 2³² − 1
+
 // Colores predeterminados frecuentes (el usuario igual puede elegir uno libre).
 const COLORES_PRESET: { hex: string; nombre: string }[] = [
   { hex: "#2563eb", nombre: "Azul" },
@@ -66,20 +71,38 @@ export function ConfigPanel() {
   // Texto local del campo de semilla (permite editarla para retomar una
   // campaña existente). Se valida al salir del campo.
   const [semillaTexto, setSemillaTexto] = useState(String(semilla));
+  const [errorSemilla, setErrorSemilla] = useState<string | null>(null);
 
   function onSalirSemilla() {
     const n = parseInt(semillaTexto, 10);
+
     if (!Number.isInteger(n) || n < 0) {
       setSemillaTexto(String(semilla));
-    } else if (n !== semilla) {
-      setSemilla(n);
+      setErrorSemilla(null);
+      return;
     }
+    if (n > SEMILLA_MAX) {
+      // Cortamos acá: si la mandáramos al store se envolvería a uint32 y el
+      // campo seguiría mostrando el número escrito, que ya no sería el real.
+      setSemillaTexto(String(semilla));
+      setErrorSemilla(
+        `La semilla más grande posible es ${SEMILLA_MAX}. Se dejó la anterior.`,
+      );
+      return;
+    }
+
+    // Reescribimos el texto con el número interpretado: así lo que se ve en el
+    // campo es siempre lo que quedó guardado (ej: "007" se muestra como "7").
+    setSemillaTexto(String(n));
+    setErrorSemilla(null);
+    if (n !== semilla) setSemilla(n);
   }
 
   function onNuevaSemilla() {
     nuevaSemilla();
     // El input es no-controlado respecto del store; lo sincronizamos a mano.
     setSemillaTexto(String(useBingo.getState().semilla));
+    setErrorSemilla(null);
   }
 
   // Respaldo / portabilidad de la campaña completa (semilla + tiradas +
@@ -103,6 +126,7 @@ export function ConfigPanel() {
     try {
       importar(await file.text());
       setSemillaTexto(String(useBingo.getState().semilla));
+      setErrorSemilla(null);
       alert("Campaña importada correctamente.");
     } catch (error) {
       console.error(error);
@@ -305,6 +329,7 @@ export function ConfigPanel() {
           <input
             type="number"
             min={0}
+            max={SEMILLA_MAX}
             value={semillaTexto}
             onChange={(e) => setSemillaTexto(e.target.value)}
             onBlur={onSalirSemilla}
@@ -320,6 +345,9 @@ export function ConfigPanel() {
             ↻ Nueva
           </button>
         </div>
+        {errorSemilla && (
+          <span className="text-xs font-medium text-red-600">{errorSemilla}</span>
+        )}
         <span className="text-xs text-slate-400">
           Misma semilla = misma campaña. Para repartir entre escuelas sin
           repetir, dejá esta semilla fija y cambiá solo el título y la cantidad.
