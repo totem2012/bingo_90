@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ConfigPanel } from "./components/ConfigPanel.tsx";
 import { CartonPreview } from "./components/CartonPreview.tsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { PanelVentas } from "./components/PanelVentas.tsx";
 import { PanelSorteo } from "./components/PanelSorteo.tsx";
 import { useBingo } from "./state/store.ts";
@@ -174,7 +175,34 @@ export default function App() {
               variación.
             </p>
             <div className="rounded-xl border border-slate-200 bg-slate-100 p-3 sm:p-6">
-              <CartonPreview carton={preview} marca={marca} />
+              {/*
+                Boundary propio y más chico que el de la raíz: el cartón que se
+                dibuja acá sale del generador, así que es de lo más expuesto a
+                un valor con forma inesperada. Si revienta, que se pierda la
+                vista previa y no la app entera: con el resto en pie el usuario
+                todavía puede generar el PDF, cargar ventas y sortear.
+              */}
+              <ErrorBoundary
+                nombre="la vista previa"
+                fallback={(_error, reintentar) => (
+                  <div className="flex flex-col items-start gap-2">
+                    <p className="text-sm text-slate-600">
+                      No se pudo dibujar este cartón. Es un problema de esta
+                      vista, no de la tirada: el PDF se genera igual. Probá con
+                      “↻ Nueva” para ver otra variación.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={reintentar}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                )}
+              >
+                <CartonPreview carton={preview} marca={marca} />
+              </ErrorBoundary>
             </div>
           </section>
         </main>
