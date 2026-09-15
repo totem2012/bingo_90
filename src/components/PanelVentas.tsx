@@ -9,7 +9,7 @@ import { esNumeroVendible, type DatosVenta } from "../lib/ventas.ts";
 const DATOS_VACIOS: DatosVenta = { comprador: "", telefono: "", vendedor: "" };
 
 const claseInput =
-  "rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none focus:border-marca-500 focus:ring-2 focus:ring-marca-100";
+  "w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none focus:border-marca-500 focus:ring-2 focus:ring-marca-100";
 
 export function PanelVentas() {
   const ventas = useBingo((s) => s.ventas);
@@ -155,7 +155,7 @@ export function PanelVentas() {
       {/* Campos de N° según el modo */}
       {modo === "rango" ? (
         <div className="flex items-end gap-2">
-          <label className="flex flex-1 flex-col gap-1">
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-sm font-medium text-slate-600">Del N°</span>
             <input
               type="number"
@@ -166,7 +166,7 @@ export function PanelVentas() {
               className={claseInput}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1">
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-sm font-medium text-slate-600">Al N°</span>
             <input
               type="number"
@@ -206,7 +206,7 @@ export function PanelVentas() {
           />
         </label>
         <div className="flex gap-2">
-          <label className="flex flex-1 flex-col gap-1">
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-sm font-medium text-slate-600">Teléfono</span>
             <input
               type="tel"
@@ -217,7 +217,7 @@ export function PanelVentas() {
               className={claseInput}
             />
           </label>
-          <label className="flex flex-1 flex-col gap-1">
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-sm font-medium text-slate-600">Vendedor</span>
             <input
               type="text"
