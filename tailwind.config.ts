@@ -18,7 +18,12 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "Segoe UI", "Roboto", "sans-serif"],
+        // Sin Inter a propósito. Estaba declarada acá pero nunca se cargaba
+        // (index.html no la pide y no hay @font-face), así que la app venía
+        // usando system-ui igual. Traerla de un CDN sería una descarga
+        // bloqueante que falla justo en el peor escenario de esta app: un
+        // celular sin señal en el salón. Todo lo demás acá funciona offline.
+        sans: ["system-ui", "Segoe UI", "Roboto", "sans-serif"],
       },
     },
   },

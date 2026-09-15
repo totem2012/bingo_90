@@ -25,7 +25,7 @@ export default function App() {
     <div className="min-h-screen">
       {/* Header */}
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-5xl px-6 py-4">
+        <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6">
           <h1 className="text-xl font-bold text-slate-800">
             🎱 Generador de Bingo 90
           </h1>
@@ -42,6 +42,7 @@ export default function App() {
                 onClick={() => setVista(id)}
                 className={[
                   "rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition",
+                  "focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2",
                   vista === id
                     ? "border-marca-600 text-marca-700"
                     : "border-transparent text-slate-500 hover:text-slate-700",
@@ -151,24 +152,51 @@ export default function App() {
 
       {vista === "generar" ? (
         /* Config (izq) + preview (der) */
-        <main className="mx-auto grid max-w-5xl gap-6 px-6 py-8 md:grid-cols-[20rem_1fr]">
+        <main className="mx-auto grid max-w-5xl gap-6 px-4 py-8 sm:px-6 md:grid-cols-[20rem_1fr]">
           <ConfigPanel />
 
-          <section className="flex flex-col gap-3">
+          {/*
+            `sticky` + `self-start`: la columna de configuración es mucho más
+            alta que la vista previa, así que al scrollear para tocar color,
+            título o logos el cartón se iba de pantalla justo cuando se quiere
+            ver el efecto. `self-start` es imprescindible: sin él la sección se
+            estira a todo el alto de la fila del grid y `sticky` no pega nada.
+
+            En móvil no hay dos columnas: la vista previa va ARRIBA
+            (`order-first`), porque abajo del formulario quedaba a ~1100px de
+            scroll y se configuraba a ciegas. Pegada al tope no: en un teléfono
+            se comería media pantalla mientras se escribe.
+          */}
+          <section className="order-first flex flex-col gap-3 md:order-none md:sticky md:top-6 md:self-start">
             <h2 className="text-lg font-semibold text-slate-800">Vista previa</h2>
             <p className="text-sm text-slate-500">
               Así se ve el primer cartón del lote. Tocá “↻ Nueva” para ver otra
               variación.
             </p>
-            <div className="rounded-xl border border-slate-200 bg-slate-100 p-6">
+            <div className="rounded-xl border border-slate-200 bg-slate-100 p-3 sm:p-6">
               <CartonPreview carton={preview} marca={marca} />
             </div>
           </section>
         </main>
       ) : (
-        /* Ventas (izq) + sorteo (der) */
-        <main className="mx-auto grid max-w-5xl gap-6 px-6 py-8 md:grid-cols-[24rem_1fr]">
+        /*
+          Ventas (izq, ancha) + sorteo (der, angosta). Estaba al revés: la lista
+          de ventas es la que tiene datos largos (nombre del comprador y del
+          vendedor) y quedaba en la columna angosta, truncando justo el dato que
+          hay que leer cuando se canta un número. El sorteo es un input, un
+          botón y la lista de premios: entra cómodo en 24rem.
+        */
+        <main className="mx-auto flex max-w-5xl flex-col-reverse gap-6 px-4 py-8 sm:px-6 md:grid md:grid-cols-[1fr_24rem]">
           <PanelVentas />
+          {/*
+            En móvil el sorteo va PRIMERO: por eso el `<main>` es un
+            `flex-col-reverse` que recién en `md` pasa a ser grid (donde el
+            reverse no aplica y vuelve el orden de siempre, ventas a la
+            izquierda). El README promete llevarse la campaña al celular para
+            sortear desde ahí: esa persona está parada en un salón cantando
+            números, no cargando ventas, y dejarlo abajo la obligaba a pasar por
+            encima de la lista entera de cartones vendidos cada vez.
+          */}
           <PanelSorteo />
         </main>
       )}
