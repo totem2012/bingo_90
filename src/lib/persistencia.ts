@@ -78,6 +78,23 @@ export function leerClave(clave: string): string | null {
 }
 
 /**
+ * Escribe una clave cuyo contenido es deseable pero no crítico (los logos, que
+ * pesan y pueden no entrar en la cuota). Devuelve si se pudo guardar y NO toca
+ * el estado global: que no entre un logo de 3 MB no significa que la campaña
+ * esté en riesgo, y el cartel rojo diría algo que no es cierto. Quien llama se
+ * encarga de avisar lo que corresponda.
+ */
+export function intentarEscribirClave(clave: string, texto: string): boolean {
+  if (!hayStorage()) return false;
+  try {
+    localStorage.setItem(clave, texto);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Escribe una clave. Si falla NO lanza —la app tiene que seguir funcionando en
  * memoria— pero deja registrado que no se guardó, para poder avisarlo.
  */

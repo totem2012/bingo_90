@@ -165,7 +165,7 @@ export function PanelVentas() {
               setAviso(null);
             }}
             className={[
-              "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition",
+              "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2",
               modo === m
                 ? "border-marca-600 bg-marca-50 text-marca-700"
                 : "border-slate-300 text-slate-600 hover:border-slate-400",
@@ -258,7 +258,7 @@ export function PanelVentas() {
       <button
         type="button"
         onClick={modo === "rango" ? cargarRango : cargarUno}
-        className="rounded-lg bg-marca-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-marca-700"
+        className="rounded-lg bg-marca-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-marca-700 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
       >
         {modo === "rango" ? "Cargar rango" : "Cargar cartón"}
       </button>
@@ -299,13 +299,13 @@ export function PanelVentas() {
                 <span className="min-w-0 flex-1 truncate text-slate-700">
                   {v.comprador || "(sin nombre)"}
                   {v.telefono && (
-                    <span className="text-slate-400"> · {v.telefono}</span>
+                    <span className="text-slate-500"> · {v.telefono}</span>
                   )}
                 </span>
                 <button
                   type="button"
                   onClick={() => anularVenta(v.numero)}
-                  className="shrink-0 text-xs font-medium text-rose-600 hover:underline"
+                  className="shrink-0 text-xs font-medium text-rose-600 hover:underline focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
                   title="Dar de baja esta venta"
                 >
                   Quitar
@@ -313,7 +313,7 @@ export function PanelVentas() {
               </li>
             ))}
             {filtradas.length === 0 && (
-              <li className="px-3 py-4 text-center text-sm text-slate-400">
+              <li className="px-3 py-4 text-center text-sm text-slate-500">
                 No hay resultados para “{busqueda}”.
               </li>
             )}
@@ -331,7 +331,7 @@ export function PanelVentas() {
                 setAviso(null);
               }
             }}
-            className="self-start rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-rose-600 hover:border-rose-400"
+            className="self-start rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-rose-600 hover:border-rose-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
           >
             Borrar todas las ventas
           </button>

@@ -14,6 +14,16 @@ const PASO_ANIMACION = 70;
 
 const fmt = (n: number) => String(n).padStart(6, "0");
 
+/** Clases del N° ganador. `aterrizando` lo deja agrandado un instante. */
+function claseNumero(aterrizando: boolean, tamano: string): string {
+  return [
+    "font-mono font-extrabold tabular-nums text-marca-900",
+    tamano,
+    "transition-transform duration-500 ease-out motion-reduce:transition-none",
+    aterrizando ? "scale-125" : "scale-100",
+  ].join(" ");
+}
+
 export function PanelSorteo() {
   const ventas = useBingo((s) => s.ventas);
   const premios = useBingo((s) => s.premios);
@@ -28,15 +38,35 @@ export function PanelSorteo() {
   const [girando, setGirando] = useState(false);
   const [numeroVisible, setNumeroVisible] = useState<number | null>(null);
   const [cartonGanador, setCartonGanador] = useState<Carton | null>(null);
-  const timers = useRef<{ intervalo?: number; fin?: number }>({});
+  // Pantalla completa para cantar el premio en el salón: el número y el nombre
+  // se leen de lejos, muchas veces proyectados.
+  const [pantallaCompleta, setPantallaCompleta] = useState(false);
+  // El cartón para cotejar contra el papel también tiene que poder verse desde
+  // la pantalla completa; si no, cantar el premio obligaría a salir.
+  const [verCarton, setVerCarton] = useState(false);
+  // Golpe de escala al frenar la ruleta: la animación dura 1,5 s para generar
+  // expectativa y terminaba en un corte seco.
+  const [aterrizando, setAterrizando] = useState(false);
+  const timers = useRef<{ intervalo?: number; fin?: number; pop?: number }>({});
 
   // Limpiamos los timers si el componente se desmonta a mitad del sorteo.
   useEffect(() => {
     return () => {
       if (timers.current.intervalo) clearInterval(timers.current.intervalo);
       if (timers.current.fin) clearTimeout(timers.current.fin);
+      if (timers.current.pop) clearTimeout(timers.current.pop);
     };
   }, []);
+
+  // Salir de la pantalla completa con Escape, como cualquier modal.
+  useEffect(() => {
+    if (!pantallaCompleta) return;
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPantallaCompleta(false);
+    };
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, [pantallaCompleta]);
 
   const enJuego = elegibles(
     ventas.map((v) => v.numero),
@@ -80,6 +110,11 @@ export function PanelSorteo() {
       if (premio) {
         setNumeroVisible(premio.numero);
         setCartonGanador(cartonDe(premio.numero));
+        // Arranca agrandado y vuelve a su tamaño: el número "cae" en lugar de
+        // aparecer de golpe. Es una transición, no una animación con
+        // keyframes, para que `motion-reduce` la anule sola.
+        setAterrizando(true);
+        timers.current.pop = window.setTimeout(() => setAterrizando(false), 30);
       }
       setGirando(false);
       setDescripcion("");
@@ -107,7 +142,7 @@ export function PanelSorteo() {
 
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-slate-600">
-            Premio <span className="font-normal text-slate-400">(opcional)</span>
+            Premio <span className="font-normal text-slate-500">(opcional)</span>
           </span>
           <input
             type="text"
@@ -124,7 +159,7 @@ export function PanelSorteo() {
           type="button"
           onClick={sortear}
           disabled={enJuego.length === 0 || girando}
-          className="rounded-lg bg-marca-600 px-4 py-4 text-lg font-bold text-white shadow-sm transition hover:bg-marca-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg bg-marca-600 px-4 py-4 text-lg font-bold text-white shadow-sm transition hover:bg-marca-700 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
         >
           {girando ? "Sorteando…" : "🎲 Sortear ganador"}
         </button>
@@ -146,13 +181,16 @@ export function PanelSorteo() {
       {(girando || ultimoGanador) && numeroVisible !== null && (
         <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-marca-600 bg-marca-50 p-6 text-center">
           <span className="text-sm font-semibold uppercase tracking-wide text-marca-700">
-            {girando
-              ? "Sorteando…"
-              : ultimoGanador?.descripcion
-                ? `Ganador · ${ultimoGanador.descripcion}`
-                : "Ganador"}
+            {girando ? "Sorteando…" : "Ganador"}
           </span>
-          <span className="font-mono text-5xl font-extrabold tabular-nums text-marca-900">
+          {/* El premio es la mitad de lo que se canta ("¡Bicicleta para el
+              000175!"), así que va grande y no en la línea chica de arriba. */}
+          {!girando && ultimoGanador?.descripcion && (
+            <span className="text-3xl font-bold text-marca-800">
+              {ultimoGanador.descripcion}
+            </span>
+          )}
+          <span className={claseNumero(aterrizando, "text-5xl")}>
             {fmt(numeroVisible)}
           </span>
           {!girando && ultimoGanador && (
@@ -165,8 +203,85 @@ export function PanelSorteo() {
                   {ultimoGanador.telefono}
                 </span>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  setVerCarton(false);
+                  setPantallaCompleta(true);
+                }}
+                className="mt-2 rounded-md border border-marca-600 px-3 py-1.5 text-sm font-medium text-marca-700 hover:bg-marca-100 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
+                title="Mostrarlo grande para cantarlo en el salón"
+              >
+                ⛶ Pantalla completa
+              </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Pantalla completa para cantar el premio ──
+          Esta app termina en un salón con gente mirando: el número y el nombre
+          tienen que leerse de lejos, muchas veces proyectados. Va sobrio a
+          propósito —fondo plano, tipografía grande, nada de efectos— porque lo
+          que importa es que se lea. */}
+      {pantallaCompleta && ultimoGanador && numeroVisible !== null && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ganador"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 overflow-auto bg-marca-900 p-6 text-center"
+        >
+          {ultimoGanador.descripcion && (
+            <span className="text-4xl font-semibold text-marca-100 sm:text-5xl">
+              {ultimoGanador.descripcion}
+            </span>
+          )}
+          <span
+            className={[
+              "font-mono text-7xl font-extrabold leading-none tabular-nums text-white sm:text-9xl",
+              "transition-transform duration-500 ease-out motion-reduce:transition-none",
+              aterrizando ? "scale-125" : "scale-100",
+            ].join(" ")}
+          >
+            {fmt(numeroVisible)}
+          </span>
+          <span className="text-3xl font-bold text-white sm:text-4xl">
+            {ultimoGanador.comprador || "(sin nombre)"}
+          </span>
+          {ultimoGanador.telefono && (
+            <span className="text-xl text-marca-100">{ultimoGanador.telefono}</span>
+          )}
+
+          {/* El cotejo contra el papel es la parte funcional de esta pantalla:
+              tiene que seguir a mano sin salir. */}
+          {verCarton && cartonGanador && (
+            <div className="w-full max-w-md rounded-xl bg-white p-4 text-left">
+              <CartonPreview
+                carton={cartonGanador}
+                marca={marca}
+                numero={ultimoGanador.numero}
+              />
+            </div>
+          )}
+
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            {cartonGanador && (
+              <button
+                type="button"
+                onClick={() => setVerCarton((v) => !v)}
+                className="rounded-md border border-marca-200 px-3 py-1.5 text-sm font-medium text-marca-100 hover:bg-marca-800 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-marca-900"
+              >
+                {verCarton ? "Ocultar cartón" : "Ver cartón"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setPantallaCompleta(false)}
+              className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-marca-900 hover:bg-marca-50 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-marca-900"
+            >
+              Salir (Esc)
+            </button>
+          </div>
         </div>
       )}
 
@@ -217,7 +332,7 @@ export function PanelSorteo() {
                 setNumeroVisible(null);
                 setCartonGanador(null);
               }}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:border-slate-400"
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
               title="El cartón vuelve al bombo"
             >
               ↶ Deshacer último
@@ -231,7 +346,7 @@ export function PanelSorteo() {
                   setCartonGanador(null);
                 }
               }}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-rose-600 hover:border-rose-400"
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-rose-600 hover:border-rose-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
             >
               Reiniciar sorteos
             </button>

@@ -114,3 +114,25 @@ describe("rectangulosDeCartones", () => {
     }
   });
 });
+
+describe("aviso de progreso", () => {
+  it("avisa el avance por tanda, no recién al final", async () => {
+    const cartones = generarLote({ cantidad: 20, semilla: 7 }).cartones;
+    const avisos: [number, number][] = [];
+
+    await construirPdf(cartones, {
+      onProgreso: (hechos, total) => avisos.push([hechos, total]),
+    });
+
+    // Una vez por tanda de 10 (ver CARTONES_POR_TANDA en buildPdf.ts).
+    expect(avisos).toEqual([
+      [10, 20],
+      [20, 20],
+    ]);
+  });
+
+  it("sin callback no rompe nada", async () => {
+    const cartones = generarLote({ cantidad: 12, semilla: 7 }).cartones;
+    await expect(construirPdf(cartones)).resolves.toBeInstanceOf(Uint8Array);
+  });
+});

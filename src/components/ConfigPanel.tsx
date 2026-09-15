@@ -4,6 +4,18 @@ import { useRef, useState } from "react";
 import { proximoDesdeDe, SEMILLA_MAXIMA, useBingo } from "../state/store.ts";
 import { LogoUploader } from "./LogoUploader.tsx";
 
+/**
+ * Qué dice la barra de progreso. Al terminar los cartones todavía falta el
+ * `doc.save()` de pdf-lib, que tarda un par de segundos más y no se puede
+ * cortar (ver buildPdf.ts): sin un texto propio, la barra se queda llena y
+ * parece trabada justo al final.
+ */
+export function textoProgreso(hechos: number, total: number): string {
+  if (hechos <= 0) return `Preparando ${total} cartones…`;
+  if (hechos >= total) return "Armando el archivo…";
+  return `${hechos} de ${total} cartones`;
+}
+
 // Colores predeterminados frecuentes (el usuario igual puede elegir uno libre).
 const COLORES_PRESET: { hex: string; nombre: string }[] = [
   { hex: "#2563eb", nombre: "Azul" },
@@ -23,6 +35,8 @@ export function ConfigPanel() {
     semilla,
     registro,
     generando,
+    progreso,
+    logosGuardados,
     marca,
     setCantidad,
     setCartonesPorHoja,
@@ -197,12 +211,23 @@ export function ConfigPanel() {
           <LogoUploader slot="logoIzquierdo" etiqueta="Izquierdo" />
           <LogoUploader slot="logoDerecho" etiqueta="Derecho" />
         </div>
+        {/* Los logos son lo único que puede no entrar en el navegador por su
+            tamaño. El PDF de esta sesión sale igual; lo que se pierde es
+            volver a encontrarlo la próxima vez. */}
+        {!logosGuardados && (
+          <span className="text-xs text-amber-700">
+            ⚠️ El logo entra en los cartones que generes ahora, pero es
+            demasiado pesado para guardarlo en este navegador: cuando vuelvas a
+            abrir la app vas a tener que cargarlo de nuevo. Probá con una imagen
+            más liviana.
+          </span>
+        )}
       </div>
 
       {/* Serie */}
       <label className="flex flex-col gap-1">
         <span className="text-sm font-medium text-slate-600">
-          Serie <span className="font-normal text-slate-400">(en el talón)</span>
+          Serie <span className="font-normal text-slate-500">(en el talón)</span>
         </span>
         <input
           type="text"
@@ -218,8 +243,10 @@ export function ConfigPanel() {
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-slate-600">Color principal</span>
 
-        {/* Presets */}
-        <div className="flex flex-wrap gap-2">
+        {/* Presets: 8 en una sola fila pareja. Con flex-wrap y un ancho fijo
+            caía uno solo a una segunda línea; en la grilla cada muestra ocupa
+            su columna y se acomodan al ancho del panel. */}
+        <div className="grid grid-cols-8 gap-2">
           {COLORES_PRESET.map(({ hex, nombre }) => {
             const activo = marca.color.toLowerCase() === hex.toLowerCase();
             return (
@@ -230,7 +257,7 @@ export function ConfigPanel() {
                 aria-label={nombre}
                 onClick={() => setColor(hex)}
                 className={[
-                  "h-7 w-7 rounded-full border-2 transition",
+                  "aspect-square w-full rounded-full border-2 transition focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2",
                   activo
                     ? "border-slate-800 ring-2 ring-slate-300"
                     : "border-white shadow-sm hover:scale-110",
@@ -249,7 +276,7 @@ export function ConfigPanel() {
             onChange={(e) => setColor(e.target.value)}
             className="h-10 w-14 cursor-pointer rounded border border-slate-300 bg-white"
           />
-          <span className="text-xs text-slate-400">o elegí uno a medida →</span>
+          <span className="text-xs text-slate-500">o elegí uno a medida →</span>
           <code className="font-mono text-sm uppercase text-slate-500">
             {marca.color}
           </code>
@@ -303,7 +330,7 @@ export function ConfigPanel() {
               type="button"
               onClick={() => setCartonesPorHoja(n)}
               className={[
-                "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition",
+                "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2",
                 cartonesPorHoja === n
                   ? "border-marca-600 bg-marca-50 text-marca-700"
                   : "border-slate-300 text-slate-600 hover:border-slate-400",
@@ -334,7 +361,7 @@ export function ConfigPanel() {
           <button
             type="button"
             onClick={onNuevaSemilla}
-            className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:border-slate-400"
+            className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
             title="Sortear una semilla nueva (campaña nueva)"
           >
             ↻ Nueva
@@ -343,7 +370,7 @@ export function ConfigPanel() {
         {errorSemilla && (
           <span className="text-xs font-medium text-red-600">{errorSemilla}</span>
         )}
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-500">
           Misma semilla = misma campaña. Para repartir entre escuelas sin
           repetir, dejá esta semilla fija y cambiá solo el título y la cantidad.
           Anotala: escribiéndola acá retomás la campaña cuando quieras.
@@ -359,7 +386,7 @@ export function ConfigPanel() {
           <button
             type="button"
             onClick={exportar}
-            className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400"
+            className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
             title="Bajar un .json con la semilla, las tiradas, las ventas y los premios"
           >
             ↓ Exportar
@@ -367,7 +394,7 @@ export function ConfigPanel() {
           <button
             type="button"
             onClick={() => archivoRef.current?.click()}
-            className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400"
+            className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
             title="Cargar una campaña desde un .json exportado antes"
           >
             ↑ Importar
@@ -380,7 +407,7 @@ export function ConfigPanel() {
             className="hidden"
           />
         </div>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-500">
           Guardá el archivo: si se limpia el caché del navegador perdés la
           numeración y las ventas. También sirve para sortear desde otra
           computadora.
@@ -394,7 +421,7 @@ export function ConfigPanel() {
             <span className="text-sm font-medium text-slate-600">
               Tiradas de esta semilla
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-500">
               {totalImpreso} cartones entregados
             </span>
           </div>
@@ -420,7 +447,7 @@ export function ConfigPanel() {
                 const r = deshacerUltimaTirada();
                 if (!r.ok) alert(r.motivo);
               }}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:border-slate-400"
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
               title="Borrar la última tirada del historial"
             >
               ↶ Deshacer última
@@ -436,7 +463,7 @@ export function ConfigPanel() {
                   reiniciarCampana();
                 }
               }}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-rose-600 hover:border-rose-400"
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-rose-600 hover:border-rose-400 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
               title="Vaciar el historial y empezar de cero"
             >
               Reiniciar
@@ -450,10 +477,36 @@ export function ConfigPanel() {
         type="button"
         onClick={generarPdf}
         disabled={generando}
-        className="mt-2 rounded-lg bg-marca-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-marca-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-2 rounded-lg bg-marca-600 px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-marca-700 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
       >
         {generando ? "Generando PDF…" : "Generar PDF"}
       </button>
+
+      {/* Progreso: con 1000 cartones el botón solo decía "Generando PDF…"
+          durante medio minuto y parecía colgado. El avance llega cada tanda
+          desde buildPdf.ts, que es cuando el navegador puede repintar. */}
+      {generando && progreso !== null && (
+        <div
+          className="flex flex-col gap-1"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={progreso.total}
+          aria-valuenow={progreso.hechos}
+          aria-label="Avance de la generación del PDF"
+        >
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-marca-600 transition-[width] duration-150"
+              style={{
+                width: `${Math.round((progreso.hechos / progreso.total) * 100)}%`,
+              }}
+            />
+          </div>
+          <span className="text-xs text-slate-500">
+            {textoProgreso(progreso.hechos, progreso.total)}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

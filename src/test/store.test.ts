@@ -404,3 +404,59 @@ describe("setSemilla", () => {
     expect(semillaRecordada()).toBe(123);
   });
 });
+
+describe("marca", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+  });
+
+  it("sobrevive al refresh, igual que la campaña", async () => {
+    const useBingo = await cargarStore();
+    useBingo.getState().setTitulo("Escuela Pepito");
+    useBingo.getState().setSubtitulo("Bella Vista");
+    useBingo.getState().setColor("#dc2626");
+    useBingo.getState().setSerie("A");
+
+    // El usuario recarga la página.
+    const recargado = await cargarStore();
+
+    expect(recargado.getState().marca.titulo).toBe("Escuela Pepito");
+    expect(recargado.getState().marca.subtitulo).toBe("Bella Vista");
+    expect(recargado.getState().marca.color).toBe("#dc2626");
+    expect(recargado.getState().marca.serie).toBe("A");
+  });
+
+  it("es global: cambiar de campaña no borra el branding", async () => {
+    const useBingo = await cargarStore();
+    useBingo.getState().setTitulo("Escuela Pepito");
+
+    useBingo.getState().nuevaSemilla();
+
+    expect(useBingo.getState().marca.titulo).toBe("Escuela Pepito");
+  });
+
+  it("un logo que no entra en el navegador se avisa en el estado", async () => {
+    const useBingo = await cargarStore();
+    const data = new Map<string, string>();
+    // @ts-expect-error: localStorage que lee pero no guarda.
+    globalThis.localStorage = {
+      getItem: (k: string) => (data.has(k) ? data.get(k)! : null),
+      setItem: () => {
+        throw new Error("QuotaExceededError");
+      },
+      removeItem: () => {},
+      clear: () => data.clear(),
+    };
+
+    useBingo.getState().setLogo("logoIzquierdo", {
+      bytes: new Uint8Array([1, 2, 3]),
+      tipo: "image/png",
+      dataUrl: "data:image/png;base64,iVBORw0KGgo=",
+    });
+
+    // Se ve en pantalla y entra en el PDF de ahora…
+    expect(useBingo.getState().marca.logoIzquierdo).not.toBeNull();
+    // …pero el usuario se entera de que no va a estar la próxima vez.
+    expect(useBingo.getState().logosGuardados).toBe(false);
+  });
+});

@@ -20,7 +20,9 @@ import {
 import { CARTONES_POR_HOJA_DEFECTO } from "../pdf/layout.ts";
 import { descargarArchivo } from "../lib/descargar.ts";
 import {
-  MARCA_INICIAL,
+  guardarLogosMarca,
+  guardarTextoMarca,
+  leerMarca,
   type LogoImagen,
   type Marca,
   type SlotLogo,
@@ -94,6 +96,12 @@ export interface BingoState {
   generando: boolean;
   /** Personalización de marca (título, color, logo). */
   marca: Marca;
+  /**
+   * Si los logos entraron en el navegador. Son lo único que puede no entrar
+   * por su tamaño; el resto de la marca es texto. En `false`, el logo se ve en
+   * pantalla pero no va a estar la próxima vez que abra.
+   */
+  logosGuardados: boolean;
   /** Cartones vendidos de la semilla actual (candidatos al sorteo). */
   ventas: Venta[];
   /** Premios ya sorteados en la semilla actual. */
@@ -142,6 +150,8 @@ export interface BingoState {
   reiniciarCampana: () => void;
   /** Genera el PDF de la próxima tirada, lo descarga y lo registra. */
   generarPdf: () => Promise<void>;
+  /** Avance de la generación en curso (null si no se está generando). */
+  progreso: { hechos: number; total: number } | null;
 
   // ── Ventas ──
   /** Marca un cartón como vendido. */
@@ -196,6 +206,21 @@ function nombreArchivoPdf(titulo: string, desde: number, hasta: number): string 
  * tiene que mover registro, ventas y premios JUNTOS: si quedaran desfasados se
  * podría sortear un cartón que pertenece a otra campaña.
  */
+/**
+ * Aplica un cambio en los campos de texto de la marca y lo persiste. Los
+ * setters son cinco y hacían todos lo mismo; con el guardado de por medio,
+ * repetirlo era pedir que alguno se quedara atrás.
+ */
+function aplicarMarca(
+  get: () => BingoState,
+  set: (parcial: Partial<BingoState>) => void,
+  cambio: Partial<Marca>,
+): void {
+  const marca = { ...get().marca, ...cambio };
+  guardarTextoMarca(marca);
+  set({ marca });
+}
+
 function estadoDeSemilla(semilla: number) {
   const tiradas = leerTiradasDe(semilla);
   const ventas = leerVentasDe(semilla);
@@ -222,7 +247,9 @@ export const useBingo = create<BingoState>((set, get) => ({
   cantidad: 12,
   cartonesPorHoja: CARTONES_POR_HOJA_DEFECTO,
   generando: false,
-  marca: MARCA_INICIAL,
+  progreso: null,
+  marca: leerMarca(),
+  logosGuardados: true,
   // Semilla, registro, ventas, premios y el contador de registros dañados
   // salen de la misma lectura que usa cambiar de campaña, para que abrir la
   // app y cambiar de semilla nunca den estados distintos.
@@ -248,17 +275,22 @@ export const useBingo = create<BingoState>((set, get) => ({
     set(estadoDeSemilla(n));
   },
 
-  setTitulo: (titulo) => set((s) => ({ marca: { ...s.marca, titulo } })),
+  // Los campos de texto se guardan en cada tecla: es una clave chica y aparte
+  // de los logos justamente para que salga barato (ver lib/marca.ts).
+  setTitulo: (titulo) => aplicarMarca(get, set, { titulo }),
 
-  setSubtitulo: (subtitulo) => set((s) => ({ marca: { ...s.marca, subtitulo } })),
+  setSubtitulo: (subtitulo) => aplicarMarca(get, set, { subtitulo }),
 
-  setEvento: (evento) => set((s) => ({ marca: { ...s.marca, evento } })),
+  setEvento: (evento) => aplicarMarca(get, set, { evento }),
 
-  setSerie: (serie) => set((s) => ({ marca: { ...s.marca, serie } })),
+  setSerie: (serie) => aplicarMarca(get, set, { serie }),
 
-  setColor: (color) => set((s) => ({ marca: { ...s.marca, color } })),
+  setColor: (color) => aplicarMarca(get, set, { color }),
 
-  setLogo: (slot, logo) => set((s) => ({ marca: { ...s.marca, [slot]: logo } })),
+  setLogo: (slot, logo) => {
+    const marca = { ...get().marca, [slot]: logo };
+    set({ marca, logosGuardados: guardarLogosMarca(marca) });
+  },
 
   nuevaSemilla: () => {
     const semilla = semillaAleatoria();
@@ -326,7 +358,7 @@ export const useBingo = create<BingoState>((set, get) => ({
     // última tirada de esta semilla, así nunca se pisan cartones ya impresos.
     const desde = proximoDesdeDe(registro);
     const hasta = desde + cantidad - 1;
-    set({ generando: true });
+    set({ generando: true, progreso: { hechos: 0, total: cantidad } });
     try {
       // Carga diferida del motor de PDF: solo cuando se genera de verdad.
       const { construirPdf } = await import("../pdf/buildPdf.ts");
@@ -337,6 +369,7 @@ export const useBingo = create<BingoState>((set, get) => ({
         cartonesPorHoja,
         marca,
         numeroInicial: desde,
+        onProgreso: (hechos, total) => set({ progreso: { hechos, total } }),
       });
       descargarArchivo(bytes, nombreArchivoPdf(marca.titulo, desde, hasta));
       // Recién registramos la tirada cuando el PDF salió bien.
@@ -345,7 +378,7 @@ export const useBingo = create<BingoState>((set, get) => ({
       console.error(error);
       alert("Hubo un problema al generar el PDF. Probá con una cantidad menor.");
     } finally {
-      set({ generando: false });
+      set({ generando: false, progreso: null });
     }
   },
 

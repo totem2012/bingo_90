@@ -30,6 +30,8 @@ export interface OpcionesPdf {
   numeroInicial?: number;
   /** Personalización de marca (logos, título, color, evento, serie). */
   marca?: Marca;
+  /** Aviso de avance, para poder mostrar una barra de progreso. */
+  onProgreso?: (hechos: number, total: number) => void;
 }
 
 /** Convierte un color hex (#rrggbb o #rgb) a RGB de pdf-lib. */
@@ -150,11 +152,10 @@ export async function construirPdf(
 
     if ((i + 1) % CARTONES_POR_TANDA === 0) {
       await cederControl();
-      // Acá va el aviso de progreso cuando se cablee la barra: un
-      // `onProgreso?: (hechos: number, total: number) => void` en OpcionesPdf,
-      // llamado con (i + 1, cartones.length). Tiene que ser en este punto: es
-      // el único momento en que el navegador puede repintar, así que avisar en
-      // cualquier otro lado no se vería hasta que el PDF ya estuviera listo.
+      // Después de ceder el control, que es el único momento en que el
+      // navegador puede repintar: avisar en cualquier otro lado no se vería
+      // hasta que el PDF ya estuviera listo.
+      opciones.onProgreso?.(i + 1, cartones.length);
     }
   }
 

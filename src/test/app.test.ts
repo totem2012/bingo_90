@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { registrarTirada } from "../lib/registro.ts";
 import { agregarRango } from "../lib/ventas.ts";
 import { reiniciarPersistencia } from "../lib/persistencia.ts";
+import { textoProgreso } from "../components/ConfigPanel.tsx";
 
 // Mock mínimo de localStorage para renderizar la app fuera del navegador.
 function instalarLocalStorage(): void {
@@ -154,5 +155,20 @@ describe("aviso de que el navegador no guarda", () => {
     const html = await renderizarApp();
 
     expect(html).not.toMatch(/no está guardando nada|No se pudo guardar/);
+  });
+});
+
+describe("texto de la barra de progreso", () => {
+  it("dice cuántos cartones van, no solo que está generando", () => {
+    expect(textoProgreso(30, 200)).toBe("30 de 200 cartones");
+  });
+
+  it("antes del primer aviso dice que está preparando", () => {
+    // El primer aviso llega recién a los 10 cartones (CARTONES_POR_TANDA).
+    expect(textoProgreso(0, 200)).toBe("Preparando 200 cartones…");
+  });
+
+  it("con los cartones listos avisa que todavía falta armar el archivo", () => {
+    expect(textoProgreso(200, 200)).toBe("Armando el archivo…");
   });
 });
