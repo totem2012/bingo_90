@@ -16,7 +16,14 @@
 
 import { rgb, type PDFFont, type PDFImage, type RGB, type PDFPage } from "pdf-lib";
 import { COLUMNAS, FILAS, type Carton } from "../core/types.ts";
-import { A4, ETIQUETAS_COLUMNA, FRACCION_TALON, type Rect } from "./layout.ts";
+import {
+  A4,
+  BASE_DESDE_TOPE,
+  ETIQUETAS_COLUMNA,
+  FRACCION_TALON,
+  topDeLineaCentrada,
+  type Rect,
+} from "./layout.ts";
 
 const COLOR_BORDE = rgb(0.1, 0.1, 0.1);
 const COLOR_NUMERO = rgb(0.05, 0.05, 0.05);
@@ -61,27 +68,58 @@ function aclarar(color: RGB, t: number): RGB {
   );
 }
 
-/** Dibuja texto centrado horizontalmente en [x, x+ancho], achicando si no entra. */
+/** Achica el tamaño de a medio punto hasta que el texto entre en `ancho`. */
+function tamanoQueEntra(font: PDFFont, texto: string, ancho: number, tamano: number): number {
+  let t = tamano;
+  while (t > 5 && font.widthOfTextAtSize(texto, t) > ancho) t -= 0.5;
+  return t;
+}
+
+/**
+ * Dibuja texto centrado horizontalmente en [x, x+ancho], achicando si no entra.
+ * `topLinea` es el tope de la línea: la base de las letras queda
+ * `BASE_DESDE_TOPE` del tamaño más abajo.
+ */
 function textoCentrado(
   page: PDFPage,
   font: PDFFont,
   texto: string,
   x: number,
   ancho: number,
-  topBaseline: number,
+  topLinea: number,
   tamano: number,
   color: RGB,
 ): void {
-  let t = tamano;
-  while (t > 5 && font.widthOfTextAtSize(texto, t) > ancho) t -= 0.5;
+  const t = tamanoQueEntra(font, texto, ancho, tamano);
   const w = font.widthOfTextAtSize(texto, t);
   page.drawText(texto, {
     x: x + (ancho - w) / 2,
-    y: yDesdeArriba(topBaseline) - t * 0.78,
+    y: yDesdeArriba(topLinea) - t * BASE_DESDE_TOPE,
     size: t,
     font,
     color,
   });
+}
+
+/**
+ * Dibuja texto centrado en las dos direcciones dentro de una banda horizontal
+ * (la del evento, la de los encabezados de columna). El centrado vertical se
+ * hace con el tamaño YA achicado, no con el pedido: si el texto no entra a lo
+ * ancho, el tamaño baja y el centro se mueve con él.
+ */
+function textoCentradoEnBanda(
+  page: PDFPage,
+  font: PDFFont,
+  texto: string,
+  x: number,
+  ancho: number,
+  top: number,
+  alto: number,
+  tamano: number,
+  color: RGB,
+): void {
+  const t = tamanoQueEntra(font, texto, ancho, tamano);
+  textoCentrado(page, font, texto, x, ancho, topDeLineaCentrada(top, alto, t), t, color);
 }
 
 /** Dibuja una imagen contenida dentro de una caja, manteniendo proporción. */
@@ -255,7 +293,17 @@ function dibujarCuerpoCarton(
       height: altoEv,
       color: aclarar(marca.color, 0.85),
     });
-    textoCentrado(page, fuentes.bold, marca.evento.toUpperCase(), rect.left, rect.ancho, top + altoEv * 0.5, 10, marca.color);
+    textoCentradoEnBanda(
+      page,
+      fuentes.bold,
+      marca.evento.toUpperCase(),
+      rect.left + 6,
+      rect.ancho - 12,
+      top,
+      altoEv,
+      10,
+      marca.color,
+    );
     top += altoEv;
   }
 
@@ -273,7 +321,7 @@ function dibujarCuerpoCarton(
       borderColor: BLANCO,
       borderWidth: 0.5,
     });
-    textoCentrado(page, fuentes.bold, ETIQUETAS_COLUMNA[j], left, anchoCelda, top + altoCol * 0.5, 6.5, marca.color);
+    textoCentradoEnBanda(page, fuentes.bold, ETIQUETAS_COLUMNA[j], left, anchoCelda, top, altoCol, 6.5, marca.color);
   }
   top += altoCol;
 

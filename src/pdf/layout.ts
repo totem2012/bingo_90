@@ -35,6 +35,37 @@ export const ETIQUETAS_COLUMNA: readonly string[] = [
   "80-90",
 ];
 
+// ─── Texto: tipografía en coordenadas "desde arriba" ────────────────────────
+//
+// pdf-lib dibuja el texto apoyado en la línea base. Estas dos proporciones del
+// tamaño de fuente son lo que hace falta para ubicarlo mirando la caja:
+
+/** Cuánto baja la línea base respecto del tope de la línea. */
+export const BASE_DESDE_TOPE = 0.78;
+
+/** Alto de una mayúscula (lo que se ve del texto), medido desde la base. */
+export const ALTO_MAYUSCULA = 0.7;
+
+/**
+ * Tope de la línea para que un texto quede centrado a lo alto de una banda
+ * (la del evento, la de los encabezados de columna).
+ *
+ * Pasar el centro de la banda como tope de línea NO alcanza: eso deja la base
+ * de las letras 0.78·tamaño más abajo del centro, o sea toda la mayúscula
+ * fuera de la mitad de arriba, y el texto termina pegado al borde inferior de
+ * la banda (y encima a los números del cartón, que arrancan justo debajo). Lo
+ * que hay que centrar es la mayúscula: su base va en `centro + alto/2` y el
+ * tope de línea, `BASE_DESDE_TOPE` más arriba.
+ */
+export function topDeLineaCentrada(
+  topBanda: number,
+  altoBanda: number,
+  tamano: number,
+): number {
+  const base = topBanda + altoBanda / 2 + (tamano * ALTO_MAYUSCULA) / 2;
+  return base - tamano * BASE_DESDE_TOPE;
+}
+
 /** Rectángulo de un cartón, en coordenadas "desde arriba". */
 export interface Rect {
   /** Distancia desde el borde izquierdo de la hoja. */

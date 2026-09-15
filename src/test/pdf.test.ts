@@ -2,7 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { generarLote } from "../core/batch.ts";
 import { construirPdf } from "../pdf/buildPdf.ts";
-import { rectangulosDeCartones } from "../pdf/layout.ts";
+import {
+  ALTO_MAYUSCULA,
+  BASE_DESDE_TOPE,
+  rectangulosDeCartones,
+  topDeLineaCentrada,
+} from "../pdf/layout.ts";
 
 describe("construirPdf", () => {
   it("genera un PDF válido y no vacío", async () => {
@@ -101,6 +106,37 @@ describe("construirPdf", () => {
     const { cartones } = generarLote({ cantidad: 5, semilla: 99 });
     const bytes = await construirPdf(cartones, { numeroInicial: 1000 });
     expect(bytes.byteLength).toBeGreaterThan(0);
+  });
+});
+
+// El nombre del evento salía pegado al borde de abajo de su banda, o sea a los
+// números del cartón: se centraba el TOPE de la línea en vez de la mayúscula.
+describe("topDeLineaCentrada", () => {
+  /** Dónde cae la mayúscula (tope y base) para un tope de línea dado. */
+  function mayuscula(topLinea: number, tamano: number) {
+    const base = topLinea + tamano * BASE_DESDE_TOPE;
+    return { tope: base - tamano * ALTO_MAYUSCULA, base };
+  }
+
+  it("deja el mismo aire arriba y abajo del texto", () => {
+    const top = 100;
+    const alto = 18;
+    const { tope, base } = mayuscula(topDeLineaCentrada(top, alto, 10), 10);
+    expect(tope - top).toBeCloseTo(top + alto - base, 6);
+  });
+
+  it("no se come el borde de abajo de la banda", () => {
+    // La banda del evento: 18 pt de alto, texto de 10 pt.
+    const alto = 18;
+    const { base } = mayuscula(topDeLineaCentrada(0, alto, 10), 10);
+    expect(alto - base).toBeGreaterThan(4);
+  });
+
+  it("sigue centrado con otros altos y tamaños", () => {
+    for (const [alto, tamano] of [[13, 6.5], [18, 10], [40, 22]]) {
+      const { tope, base } = mayuscula(topDeLineaCentrada(0, alto, tamano), tamano);
+      expect(tope).toBeCloseTo(alto - base, 6);
+    }
   });
 });
 
