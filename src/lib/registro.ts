@@ -39,19 +39,38 @@ function hayStorage(): boolean {
   }
 }
 
-function leerRegistro(): Registro {
-  if (!hayStorage()) return {};
+/**
+ * Lee el blob completo de la clave. `ilegible` distingue dos cosas que antes se
+ * confundían en un `{}`: que no haya nada guardado (campaña nueva) y que lo
+ * guardado no se pueda leer. En el segundo caso se perdió TODO lo de esta
+ * clave —de todas las semillas— y la app tiene que avisarlo, porque si no el
+ * usuario ve una campaña sana y vacía justo cuando más datos perdió.
+ *
+ * Que el navegador no nos deje leer (modo privado, cookies bloqueadas) NO es
+ * ilegible: ahí nunca hubo nada guardado y la app funciona en memoria.
+ */
+function leerCrudo(): { reg: Registro; ilegible: boolean } {
+  if (!hayStorage()) return { reg: {}, ilegible: false };
+  let crudo: string | null;
   try {
-    const crudo = localStorage.getItem(CLAVE_REGISTRO);
-    if (!crudo) return {};
+    crudo = localStorage.getItem(CLAVE_REGISTRO);
+  } catch {
+    return { reg: {}, ilegible: false };
+  }
+  if (!crudo) return { reg: {}, ilegible: false };
+  try {
     const datos: unknown = JSON.parse(crudo);
     if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
-      return {};
+      return { reg: {}, ilegible: true };
     }
-    return datos as Registro;
+    return { reg: datos as Registro, ilegible: false };
   } catch {
-    return {};
+    return { reg: {}, ilegible: true };
   }
+}
+
+function leerRegistro(): Registro {
+  return leerCrudo().reg;
 }
 
 function escribirRegistro(reg: Registro): void {
@@ -92,6 +111,8 @@ export function esTirada(v: unknown): v is Tirada {
 export interface LecturaTiradas {
   tiradas: Tirada[];
   descartados: number;
+  /** No se pudo leer lo guardado: se perdió el historial de todas las semillas. */
+  ilegible: boolean;
 }
 
 /**
@@ -105,13 +126,23 @@ export interface LecturaTiradas {
  * el descarte se cuenta y la app lo avisa en pantalla (ver App.tsx).
  */
 export function leerTiradasDe(semilla: number): LecturaTiradas {
-  const guardadas = leerRegistro()[String(semilla)];
-  if (guardadas === undefined) return { tiradas: [], descartados: 0 };
+  const { reg, ilegible } = leerCrudo();
+  if (ilegible) return { tiradas: [], descartados: 0, ilegible: true };
+  const guardadas = reg[String(semilla)];
+  if (guardadas === undefined) {
+    return { tiradas: [], descartados: 0, ilegible: false };
+  }
   // Si lo guardado ni siquiera es una lista se perdió todo el historial de esa
   // semilla: cuenta como un registro dañado para que el aviso salga igual.
-  if (!Array.isArray(guardadas)) return { tiradas: [], descartados: 1 };
+  if (!Array.isArray(guardadas)) {
+    return { tiradas: [], descartados: 1, ilegible: false };
+  }
   const tiradas = guardadas.filter(esTirada);
-  return { tiradas, descartados: guardadas.length - tiradas.length };
+  return {
+    tiradas,
+    descartados: guardadas.length - tiradas.length,
+    ilegible: false,
+  };
 }
 
 /** Tiradas ya registradas para una semilla (ordenadas por aparición). */

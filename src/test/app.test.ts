@@ -75,3 +75,30 @@ describe("aviso de registros dañados", () => {
     expect(html).toMatch(/Se descartó 1 registro dañado/);
   });
 });
+
+describe("aviso de storage ilegible", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+    localStorage.setItem("bingo90:semilla:v1", String(SEMILLA));
+  });
+
+  it("avisa que no se pudo leer lo guardado, con su propio texto", async () => {
+    // Sin esto la app se veía igual que una campaña nueva: vacía y sana.
+    localStorage.setItem("bingo90:ventas:v1", "{no es json");
+
+    const html = await renderizarApp();
+
+    expect(html).toMatch(/No se pudo leer lo que había guardado/);
+    expect(html).toMatch(/respaldo/i);
+    // No se mezcla con el otro aviso.
+    expect(html).not.toMatch(/registros dañados/);
+  });
+
+  it("una campaña sana no lo dispara", async () => {
+    registrarTirada(SEMILLA, "Escuela Pepito", 100);
+
+    const html = await renderizarApp();
+
+    expect(html).not.toMatch(/No se pudo leer/);
+  });
+});

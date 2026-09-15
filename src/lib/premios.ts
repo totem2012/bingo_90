@@ -45,19 +45,38 @@ function hayStorage(): boolean {
   }
 }
 
-function leerTodo(): RegistroPremios {
-  if (!hayStorage()) return {};
+/**
+ * Lee el blob completo de la clave. `ilegible` distingue dos cosas que antes se
+ * confundían en un `{}`: que no haya nada guardado (campaña nueva) y que lo
+ * guardado no se pueda leer. En el segundo caso se perdió TODO lo de esta
+ * clave —de todas las semillas— y la app tiene que avisarlo, porque si no el
+ * usuario ve una campaña sana y vacía justo cuando más datos perdió.
+ *
+ * Que el navegador no nos deje leer (modo privado, cookies bloqueadas) NO es
+ * ilegible: ahí nunca hubo nada guardado y la app funciona en memoria.
+ */
+function leerCrudo(): { reg: RegistroPremios; ilegible: boolean } {
+  if (!hayStorage()) return { reg: {}, ilegible: false };
+  let crudo: string | null;
   try {
-    const crudo = localStorage.getItem(CLAVE_PREMIOS);
-    if (!crudo) return {};
+    crudo = localStorage.getItem(CLAVE_PREMIOS);
+  } catch {
+    return { reg: {}, ilegible: false };
+  }
+  if (!crudo) return { reg: {}, ilegible: false };
+  try {
     const datos: unknown = JSON.parse(crudo);
     if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
-      return {};
+      return { reg: {}, ilegible: true };
     }
-    return datos as RegistroPremios;
+    return { reg: datos as RegistroPremios, ilegible: false };
   } catch {
-    return {};
+    return { reg: {}, ilegible: true };
   }
+}
+
+function leerTodo(): RegistroPremios {
+  return leerCrudo().reg;
 }
 
 function escribirTodo(reg: RegistroPremios): void {
@@ -92,6 +111,8 @@ export function esPremio(v: unknown): v is Premio {
 export interface LecturaPremios {
   premios: Premio[];
   descartados: number;
+  /** No se pudo leer lo guardado: se perdieron los premios de todas las semillas. */
+  ilegible: boolean;
 }
 
 /**
@@ -102,11 +123,21 @@ export interface LecturaPremios {
  * el evento y desapareció del historial).
  */
 export function leerPremiosDe(semilla: number): LecturaPremios {
-  const guardados = leerTodo()[String(semilla)];
-  if (guardados === undefined) return { premios: [], descartados: 0 };
-  if (!Array.isArray(guardados)) return { premios: [], descartados: 1 };
+  const { reg, ilegible } = leerCrudo();
+  if (ilegible) return { premios: [], descartados: 0, ilegible: true };
+  const guardados = reg[String(semilla)];
+  if (guardados === undefined) {
+    return { premios: [], descartados: 0, ilegible: false };
+  }
+  if (!Array.isArray(guardados)) {
+    return { premios: [], descartados: 1, ilegible: false };
+  }
   const premios = guardados.filter(esPremio);
-  return { premios, descartados: guardados.length - premios.length };
+  return {
+    premios,
+    descartados: guardados.length - premios.length,
+    ilegible: false,
+  };
 }
 
 /** Premios sorteados para una semilla, en orden de sorteo. */

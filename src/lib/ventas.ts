@@ -40,19 +40,38 @@ function hayStorage(): boolean {
   }
 }
 
-function leerTodo(): RegistroVentas {
-  if (!hayStorage()) return {};
+/**
+ * Lee el blob completo de la clave. `ilegible` distingue dos cosas que antes se
+ * confundían en un `{}`: que no haya nada guardado (campaña nueva) y que lo
+ * guardado no se pueda leer. En el segundo caso se perdió TODO lo de esta
+ * clave —de todas las semillas— y la app tiene que avisarlo, porque si no el
+ * usuario ve una campaña sana y vacía justo cuando más datos perdió.
+ *
+ * Que el navegador no nos deje leer (modo privado, cookies bloqueadas) NO es
+ * ilegible: ahí nunca hubo nada guardado y la app funciona en memoria.
+ */
+function leerCrudo(): { reg: RegistroVentas; ilegible: boolean } {
+  if (!hayStorage()) return { reg: {}, ilegible: false };
+  let crudo: string | null;
   try {
-    const crudo = localStorage.getItem(CLAVE_VENTAS);
-    if (!crudo) return {};
+    crudo = localStorage.getItem(CLAVE_VENTAS);
+  } catch {
+    return { reg: {}, ilegible: false };
+  }
+  if (!crudo) return { reg: {}, ilegible: false };
+  try {
     const datos: unknown = JSON.parse(crudo);
     if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
-      return {};
+      return { reg: {}, ilegible: true };
     }
-    return datos as RegistroVentas;
+    return { reg: datos as RegistroVentas, ilegible: false };
   } catch {
-    return {};
+    return { reg: {}, ilegible: true };
   }
+}
+
+function leerTodo(): RegistroVentas {
+  return leerCrudo().reg;
 }
 
 function escribirTodo(reg: RegistroVentas): void {
@@ -98,6 +117,8 @@ export function esVenta(v: unknown): v is Venta {
 export interface LecturaVentas {
   ventas: Venta[];
   descartados: number;
+  /** No se pudo leer lo guardado: se perdieron las ventas de todas las semillas. */
+  ilegible: boolean;
 }
 
 /**
@@ -108,13 +129,20 @@ export interface LecturaVentas {
  * es un cartón cobrado que deja de entrar al sorteo.
  */
 export function leerVentasDe(semilla: number): LecturaVentas {
-  const guardadas = leerTodo()[String(semilla)];
-  if (guardadas === undefined) return { ventas: [], descartados: 0 };
-  if (!Array.isArray(guardadas)) return { ventas: [], descartados: 1 };
+  const { reg, ilegible } = leerCrudo();
+  if (ilegible) return { ventas: [], descartados: 0, ilegible: true };
+  const guardadas = reg[String(semilla)];
+  if (guardadas === undefined) {
+    return { ventas: [], descartados: 0, ilegible: false };
+  }
+  if (!Array.isArray(guardadas)) {
+    return { ventas: [], descartados: 1, ilegible: false };
+  }
   const ventas = guardadas.filter(esVenta);
   return {
     ventas: porNumero(ventas),
     descartados: guardadas.length - ventas.length,
+    ilegible: false,
   };
 }
 

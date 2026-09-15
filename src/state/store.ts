@@ -92,6 +92,13 @@ export interface BingoState {
    * impreso, y entonces la próxima tirada reimprimiría N° ya vendidos.
    */
   registrosDanados: number;
+  /**
+   * No se pudo leer algo de lo guardado (el JSON de una clave entera quedó
+   * ilegible). Es peor que unos registros dañados: no se perdió parte de una
+   * campaña sino todo lo de esa clave, y sin aviso la app se vería igual que
+   * una campaña nueva.
+   */
+  datosIlegibles: boolean;
 
   setCantidad: (n: number) => void;
   setCartonesPorHoja: (n: number) => void;
@@ -132,8 +139,8 @@ export interface BingoState {
   /** Borra todo el historial de premios. */
   borrarPremios: () => void;
 
-  /** Oculta el aviso de registros dañados (no toca lo guardado). */
-  ocultarAvisoDanados: () => void;
+  /** Oculta el aviso de datos dañados o ilegibles (no toca lo guardado). */
+  ocultarAvisoDatos: () => void;
 
   // ── Campaña (respaldo / portabilidad) ──
   /** Descarga un .json con semilla + tiradas + ventas + premios. */
@@ -180,6 +187,7 @@ function estadoDeSemilla(semilla: number) {
     ultimoGanador: null,
     registrosDanados:
       tiradas.descartados + ventas.descartados + premios.descartados,
+    datosIlegibles: tiradas.ilegible || ventas.ilegible || premios.ilegible,
   };
 }
 
@@ -270,12 +278,14 @@ export const useBingo = create<BingoState>((set, get) => ({
     // Volver a empezar la campaña reimprime desde el N° 1, así que las ventas
     // y los premios viejos quedarían apuntando a cartones que ahora le tocan a
     // otra persona. Se limpia todo junto o no se limpia nada.
-    set({
-      registro: reiniciarSemilla(semilla),
-      ventas: limpiarVentas(semilla),
-      premios: reiniciarPremios(semilla),
-      ultimoGanador: null,
-    });
+    reiniciarSemilla(semilla);
+    limpiarVentas(semilla);
+    reiniciarPremios(semilla);
+    // Y se relee por el mismo camino que setSemilla/nuevaSemilla/importar en
+    // vez de armar el estado a mano: esta función ya se quedó atrás una vez
+    // (el aviso de datos dañados seguía en pantalla después de reiniciar) y
+    // volvería a pasar con el próximo campo que dependa de la semilla.
+    set(estadoDeSemilla(semilla));
   },
 
   generarPdf: async () => {
@@ -372,7 +382,7 @@ export const useBingo = create<BingoState>((set, get) => ({
     set({ premios: reiniciarPremios(semilla), ultimoGanador: null });
   },
 
-  ocultarAvisoDanados: () => set({ registrosDanados: 0 }),
+  ocultarAvisoDatos: () => set({ registrosDanados: 0, datosIlegibles: false }),
 
   // ── Campaña ───────────────────────────────────────────────────────────────
 

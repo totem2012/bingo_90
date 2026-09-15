@@ -145,21 +145,46 @@ describe("lectura de premios dañados", () => {
       JSON.stringify({ "7": [null, sano, "basura"] }),
     );
 
-    expect(leerPremiosDe(7)).toEqual({ premios: [sano], descartados: 2 });
+    expect(leerPremiosDe(7)).toEqual({
+      premios: [sano],
+      descartados: 2,
+      ilegible: false,
+    });
   });
 
   it("una semilla sin premios no cuenta descartes", () => {
-    expect(leerPremiosDe(7)).toEqual({ premios: [], descartados: 0 });
+    expect(leerPremiosDe(7)).toEqual({
+      premios: [],
+      descartados: 0,
+      ilegible: false,
+    });
   });
 
   it("si lo guardado ni siquiera es una lista, cuenta como dañado", () => {
     localStorage.setItem("bingo90:premios:v1", JSON.stringify({ "7": "hola" }));
-    expect(leerPremiosDe(7)).toEqual({ premios: [], descartados: 1 });
+    expect(leerPremiosDe(7)).toEqual({
+      premios: [],
+      descartados: 1,
+      ilegible: false,
+    });
   });
 
-  it("un storage ilegible se lee vacío sin romper", () => {
+  it("un storage ilegible se lee vacío, sin romper pero avisando", () => {
     localStorage.setItem("bingo90:premios:v1", "{no es json");
     expect(() => premiosDe(7)).not.toThrow();
-    expect(premiosDe(7)).toEqual([]);
+    expect(leerPremiosDe(7)).toEqual({
+      premios: [],
+      descartados: 0,
+      ilegible: true,
+    });
+  });
+
+  it("una clave que no es un objeto también es ilegible", () => {
+    localStorage.setItem("bingo90:premios:v1", JSON.stringify([1, 2, 3]));
+    expect(leerPremiosDe(7).ilegible).toBe(true);
+  });
+
+  it("no haber guardado nunca nada NO es ilegible", () => {
+    expect(leerPremiosDe(7).ilegible).toBe(false);
   });
 });

@@ -199,7 +199,7 @@ describe("registrosDanados", () => {
     useBingo.getState().setSemilla(SEMILLA);
     expect(useBingo.getState().registrosDanados).toBe(1);
 
-    useBingo.getState().ocultarAvisoDanados();
+    useBingo.getState().ocultarAvisoDatos();
     expect(useBingo.getState().registrosDanados).toBe(0);
     expect(localStorage.getItem("bingo90:ventas:v1")).toBe(
       JSON.stringify({ [SEMILLA]: [null] }),
@@ -229,5 +229,86 @@ describe("registrosDanados", () => {
     expect(useBingo.getState().registrosDanados).toBe(0);
     expect(useBingo.getState().ventas).toHaveLength(11);
     expect(useBingo.getState().registro).toHaveLength(2);
+  });
+});
+
+describe("reiniciarCampana", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+  });
+
+  it("borra registro, ventas y premios juntos", async () => {
+    sembrarCampana();
+    registrarPremio(SEMILLA, {
+      descripcion: "Bicicleta",
+      numero: 155,
+      comprador: "Escuela Pepito",
+      telefono: "",
+    });
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    useBingo.getState().reiniciarCampana();
+
+    expect(useBingo.getState().registro).toEqual([]);
+    expect(useBingo.getState().ventas).toEqual([]);
+    expect(useBingo.getState().premios).toEqual([]);
+    expect(useBingo.getState().ultimoGanador).toBeNull();
+    expect(tiradasDe(SEMILLA)).toEqual([]);
+    expect(ventasDe(SEMILLA)).toEqual([]);
+  });
+
+  it("apaga el aviso de datos dañados en vez de dejarlo colgado", async () => {
+    // Campaña dañada → cartel arriba → el usuario reinicia a propósito. El
+    // cartel no puede seguir diciéndole que revise un historial que acaba de
+    // vaciar, ni que importe el respaldo.
+    localStorage.setItem(
+      "bingo90:ventas:v1",
+      JSON.stringify({ [SEMILLA]: [null, 42] }),
+    );
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+    expect(useBingo.getState().registrosDanados).toBe(2);
+
+    useBingo.getState().reiniciarCampana();
+
+    expect(useBingo.getState().registrosDanados).toBe(0);
+    expect(useBingo.getState().datosIlegibles).toBe(false);
+  });
+});
+
+describe("datosIlegibles", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+  });
+
+  it("una clave ilegible se avisa aunque no haya registros descartados", async () => {
+    localStorage.setItem("bingo90:ventas:v1", "{no es json");
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    expect(useBingo.getState().datosIlegibles).toBe(true);
+    // Justamente el caso que no avisaba: 0 descartados y campaña vacía.
+    expect(useBingo.getState().registrosDanados).toBe(0);
+    expect(useBingo.getState().ventas).toEqual([]);
+  });
+
+  it("una campaña sana no lo dispara", async () => {
+    sembrarCampana();
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+    expect(useBingo.getState().datosIlegibles).toBe(false);
+  });
+
+  it("se puede ocultar el aviso sin tocar lo guardado", async () => {
+    localStorage.setItem("bingo90:premios:v1", "{no es json");
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+    expect(useBingo.getState().datosIlegibles).toBe(true);
+
+    useBingo.getState().ocultarAvisoDatos();
+
+    expect(useBingo.getState().datosIlegibles).toBe(false);
+    expect(localStorage.getItem("bingo90:premios:v1")).toBe("{no es json");
   });
 });

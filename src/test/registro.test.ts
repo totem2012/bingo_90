@@ -131,17 +131,61 @@ describe("lectura de tiradas dañadas", () => {
       }),
     );
 
-    expect(leerTiradasDe(7)).toEqual({ tiradas: [sana], descartados: 1 });
+    expect(leerTiradasDe(7)).toEqual({
+      tiradas: [sana],
+      descartados: 1,
+      ilegible: false,
+    });
     // Y el total impreso solo cuenta lo sano.
     expect(proximoDesde(7)).toBe(101);
   });
 
   it("una semilla sin tiradas no cuenta descartes", () => {
-    expect(leerTiradasDe(7)).toEqual({ tiradas: [], descartados: 0 });
+    expect(leerTiradasDe(7)).toEqual({
+      tiradas: [],
+      descartados: 0,
+      ilegible: false,
+    });
   });
 
   it("si lo guardado ni siquiera es una lista, cuenta como dañado", () => {
     localStorage.setItem("bingo90:registro:v1", JSON.stringify({ "7": 5 }));
-    expect(leerTiradasDe(7)).toEqual({ tiradas: [], descartados: 1 });
+    expect(leerTiradasDe(7)).toEqual({
+      tiradas: [],
+      descartados: 1,
+      ilegible: false,
+    });
+  });
+});
+
+describe("storage ilegible (registro)", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+  });
+
+  it("un JSON roto se informa como ilegible, no como campaña vacía", () => {
+    localStorage.setItem("bingo90:registro:v1", "{no es json");
+    expect(leerTiradasDe(7)).toEqual({
+      tiradas: [],
+      descartados: 0,
+      ilegible: true,
+    });
+    // Y la app sigue de pie.
+    expect(() => tiradasDe(7)).not.toThrow();
+    expect(proximoDesde(7)).toBe(1);
+  });
+
+  it("no haber guardado nunca nada NO es ilegible", () => {
+    expect(leerTiradasDe(7).ilegible).toBe(false);
+  });
+
+  it("escribir después de un storage ilegible lo deja sano de nuevo", () => {
+    localStorage.setItem("bingo90:registro:v1", "{no es json");
+    registrarTirada(7, "Escuela Pepito", 100);
+    expect(leerTiradasDe(7)).toEqual({
+      tiradas: [expect.objectContaining({ desde: 1, hasta: 100 })],
+      descartados: 0,
+      ilegible: false,
+    });
   });
 });

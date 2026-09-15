@@ -164,15 +164,52 @@ describe("lectura de ventas dañadas", () => {
       JSON.stringify({ "7": [null, sana, 42, { numero: 5 }] }),
     );
 
-    expect(leerVentasDe(7)).toEqual({ ventas: [sana], descartados: 3 });
+    expect(leerVentasDe(7)).toEqual({
+      ventas: [sana],
+      descartados: 3,
+      ilegible: false,
+    });
   });
 
   it("una semilla sin ventas no cuenta descartes", () => {
-    expect(leerVentasDe(7)).toEqual({ ventas: [], descartados: 0 });
+    expect(leerVentasDe(7)).toEqual({
+      ventas: [],
+      descartados: 0,
+      ilegible: false,
+    });
   });
 
   it("si lo guardado ni siquiera es una lista, cuenta como dañado", () => {
     localStorage.setItem("bingo90:ventas:v1", JSON.stringify({ "7": "hola" }));
-    expect(leerVentasDe(7)).toEqual({ ventas: [], descartados: 1 });
+    expect(leerVentasDe(7)).toEqual({
+      ventas: [],
+      descartados: 1,
+      ilegible: false,
+    });
+  });
+});
+
+describe("storage ilegible (ventas)", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+  });
+
+  it("un JSON roto se informa como ilegible, no como campaña vacía", () => {
+    localStorage.setItem("bingo90:ventas:v1", "{no es json");
+    expect(leerVentasDe(7)).toEqual({
+      ventas: [],
+      descartados: 0,
+      ilegible: true,
+    });
+    expect(() => ventasDe(7)).not.toThrow();
+  });
+
+  it("una clave que no es un objeto también es ilegible", () => {
+    localStorage.setItem("bingo90:ventas:v1", JSON.stringify(["x"]));
+    expect(leerVentasDe(7).ilegible).toBe(true);
+  });
+
+  it("no haber guardado nunca nada NO es ilegible", () => {
+    expect(leerVentasDe(7).ilegible).toBe(false);
   });
 });
