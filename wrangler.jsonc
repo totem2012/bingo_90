@@ -1,0 +1,14 @@
+{
+  // Config explícita para Cloudflare Workers.
+  //
+  // Sin este archivo, `wrangler deploy` intenta autodetectar el framework y,
+  // para Vite, exige la versión 6 o superior. Acá no hace falta: la app es
+  // estática, se compila a dist/ y Workers solo tiene que servir esos archivos.
+  "name": "bingo-90",
+  "compatibility_date": "2026-09-15",
+  "assets": {
+    "directory": "./dist",
+    // Una sola página: cualquier ruta desconocida devuelve index.html.
+    "not_found_handling": "single-page-application"
+  }
+}
