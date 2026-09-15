@@ -17,5 +17,9 @@ export function descargarArchivo(
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // Firefox y Safari a veces cancelan la descarga si el blob se libera antes de
+  // que el navegador termine de engancharla, así que el revoke va diferido. El
+  // costo de esperar son unos KB en memoria; el de revocar temprano, un PDF o
+  // un respaldo que no se descarga y sin ningún error a la vista.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

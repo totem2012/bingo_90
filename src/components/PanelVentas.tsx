@@ -62,7 +62,21 @@ export function PanelVentas() {
       return;
     }
 
-    const { agregados, salteados } = venderRango(d, h, datos);
+    // Las validaciones de arriba repiten las de la capa de datos, así que hoy
+    // esto no debería lanzar. Si algún día se desincronizan, que se vea el
+    // mensaje y no una pantalla en blanco.
+    let resultado: ReturnType<typeof venderRango>;
+    try {
+      resultado = venderRango(d, h, datos);
+    } catch (e) {
+      setAviso({
+        tipo: "error",
+        texto: e instanceof Error ? e.message : "No se pudo cargar el rango.",
+      });
+      return;
+    }
+
+    const { agregados, salteados } = resultado;
     setAviso({
       tipo: "ok",
       texto:
@@ -92,7 +106,17 @@ export function PanelVentas() {
       return;
     }
 
-    venderUno(n, datos);
+    try {
+      venderUno(n, datos);
+    } catch (e) {
+      setAviso({
+        tipo: "error",
+        texto:
+          e instanceof Error ? e.message : `No se pudo cargar el cartón N° ${n}.`,
+      });
+      return;
+    }
+
     setAviso({ tipo: "ok", texto: `Cartón N° ${n} cargado.` });
     limpiarFormulario();
   }
