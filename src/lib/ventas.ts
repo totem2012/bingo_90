@@ -44,7 +44,12 @@ function leerTodo(): RegistroVentas {
   if (!hayStorage()) return {};
   try {
     const crudo = localStorage.getItem(CLAVE_VENTAS);
-    return crudo ? (JSON.parse(crudo) as RegistroVentas) : {};
+    if (!crudo) return {};
+    const datos: unknown = JSON.parse(crudo);
+    if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
+      return {};
+    }
+    return datos as RegistroVentas;
   } catch {
     return {};
   }
@@ -72,20 +77,74 @@ export function esNumeroVendible(numero: number, totalImpreso: number): boolean 
   return Number.isInteger(numero) && numero >= 1 && numero <= totalImpreso;
 }
 
+/**
+ * ¿Es una venta bien formada? Se usa para validar lo que entra por el import
+ * de campaña (ver campana.ts) y para descartar basura al leer el storage.
+ */
+export function esVenta(v: unknown): v is Venta {
+  if (typeof v !== "object" || v === null) return false;
+  const venta = v as Record<string, unknown>;
+  return (
+    Number.isInteger(venta.numero) &&
+    (venta.numero as number) >= 1 &&
+    typeof venta.comprador === "string" &&
+    typeof venta.telefono === "string" &&
+    typeof venta.vendedor === "string" &&
+    typeof venta.fecha === "string"
+  );
+}
+
+/** Lo leído de una semilla + cuántos registros dañados hubo que descartar. */
+export interface LecturaVentas {
+  ventas: Venta[];
+  descartados: number;
+}
+
+/**
+ * Ventas de una semilla, informando cuántos registros dañados se descartaron.
+ * Lo corrupto se descarta antes de ordenar: el `sort` sobre basura explotaba al
+ * evaluar el store (state/store.ts) y dejaba la app en pantalla en blanco. El
+ * descarte se cuenta para poder avisarlo (ver App.tsx): una venta que se cae
+ * es un cartón cobrado que deja de entrar al sorteo.
+ */
+export function leerVentasDe(semilla: number): LecturaVentas {
+  const guardadas = leerTodo()[String(semilla)];
+  if (guardadas === undefined) return { ventas: [], descartados: 0 };
+  if (!Array.isArray(guardadas)) return { ventas: [], descartados: 1 };
+  const ventas = guardadas.filter(esVenta);
+  return {
+    ventas: porNumero(ventas),
+    descartados: guardadas.length - ventas.length,
+  };
+}
+
 /** Ventas registradas para una semilla, ordenadas por N° de cartón. */
 export function ventasDe(semilla: number): Venta[] {
-  return porNumero(leerTodo()[String(semilla)] ?? []);
+  return leerVentasDe(semilla).ventas;
 }
 
 /**
  * Agrega una venta. Si ese N° ya estaba vendido no hace nada, para no pisar
  * sin querer los datos del comprador original: primero hay que quitarlo.
+ *
+ * Igual que en `agregarRango`, `totalImpreso` es obligatorio: la invariante
+ * "solo se vende lo ya impreso" vive acá y no solo en el formulario. Lanza un
+ * Error con un mensaje mostrable si el N° no es vendible.
  */
 export function agregarVenta(
   semilla: number,
   numero: number,
   datos: DatosVenta,
+  totalImpreso: number,
 ): Venta[] {
+  if (!esNumeroVendible(numero, totalImpreso)) {
+    throw new Error(
+      totalImpreso >= 1
+        ? `Solo se pueden vender cartones ya impresos (del 1 al ${totalImpreso}).`
+        : "Todavía no hay cartones impresos para vender.",
+    );
+  }
+
   const reg = leerTodo();
   const clave = String(semilla);
   const previas = reg[clave] ?? [];
@@ -114,13 +173,34 @@ export interface ResultadoRango {
  * Carga de un saque el rango [desde, hasta] a un mismo comprador.
  * Los N° que ya estaban vendidos se saltean (y se informan), así reintentar
  * un rango solapado nunca pisa datos cargados antes.
+ *
+ * `totalImpreso` (cuántos cartones de la semilla ya se entregaron, lo sabe el
+ * registro de tiradas) es obligatorio: la invariante "solo se vende lo ya
+ * impreso" tiene que vivir acá y no solo en el formulario, si no cualquier
+ * llamada directa puede meter miles de ventas de cartones que no existen.
+ * Lanza un Error con un mensaje mostrable si el rango no sirve.
  */
 export function agregarRango(
   semilla: number,
   desde: number,
   hasta: number,
   datos: DatosVenta,
+  totalImpreso: number,
 ): ResultadoRango {
+  if (!Number.isInteger(desde) || !Number.isInteger(hasta) || hasta < desde) {
+    throw new Error("El rango de cartones no es válido.");
+  }
+  if (
+    !esNumeroVendible(desde, totalImpreso) ||
+    !esNumeroVendible(hasta, totalImpreso)
+  ) {
+    throw new Error(
+      totalImpreso >= 1
+        ? `Solo se pueden vender cartones ya impresos (del 1 al ${totalImpreso}).`
+        : "Todavía no hay cartones impresos para vender.",
+    );
+  }
+
   const reg = leerTodo();
   const clave = String(semilla);
   const previas = reg[clave] ?? [];

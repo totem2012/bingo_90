@@ -28,26 +28,26 @@ import {
 import {
   consumidos,
   deshacerUltima,
+  leerTiradasDe,
   recordarSemilla,
   registrarTirada,
   reiniciarSemilla,
   semillaRecordada,
-  tiradasDe,
   type Tirada,
 } from "../lib/registro.ts";
 import {
   agregarRango,
   agregarVenta,
+  leerVentasDe,
   limpiarVentas,
   quitarVenta,
-  ventasDe,
   type DatosVenta,
   type ResultadoRango,
   type Venta,
 } from "../lib/ventas.ts";
 import {
   deshacerUltimoPremio,
-  premiosDe,
+  leerPremiosDe,
   registrarPremio,
   reiniciarPremios,
   type Premio,
@@ -58,6 +58,12 @@ import {
   nombreArchivoCampana,
 } from "../lib/campana.ts";
 import { elegibles, sortearUno } from "../core/sorteo.ts";
+
+/**
+ * Resultado de intentar deshacer una tirada. Cuando no se puede, el `motivo`
+ * es el texto que se le muestra al usuario tal cual.
+ */
+export type ResultadoDeshacer = { ok: true } | { ok: false; motivo: string };
 
 export interface BingoState {
   /** Cantidad de cartones a generar en la próxima tirada. */
@@ -80,6 +86,12 @@ export interface BingoState {
   premios: Premio[];
   /** Último premio sorteado, para destacarlo en pantalla. */
   ultimoGanador: Premio | null;
+  /**
+   * Cuántos registros dañados se descartaron al leer la campaña actual. Se
+   * avisa en pantalla (App.tsx) porque el descarte puede haber bajado el total
+   * impreso, y entonces la próxima tirada reimprimiría N° ya vendidos.
+   */
+  registrosDanados: number;
 
   setCantidad: (n: number) => void;
   setCartonesPorHoja: (n: number) => void;
@@ -92,8 +104,11 @@ export interface BingoState {
   setLogo: (slot: SlotLogo, logo: LogoImagen | null) => void;
   /** Sortea una semilla nueva → arranca una campaña limpia. */
   nuevaSemilla: () => void;
-  /** Borra la última tirada del historial (para corregir un error). */
-  deshacerUltimaTirada: () => void;
+  /**
+   * Borra la última tirada del historial (para corregir un error). Se niega
+   * si en ese tramo ya hay cartones vendidos o premios sorteados.
+   */
+  deshacerUltimaTirada: () => ResultadoDeshacer;
   /** Borra todo el historial de la semilla actual. */
   reiniciarCampana: () => void;
   /** Genera el PDF de la próxima tirada, lo descarga y lo registra. */
@@ -116,6 +131,9 @@ export interface BingoState {
   deshacerPremio: () => void;
   /** Borra todo el historial de premios. */
   borrarPremios: () => void;
+
+  /** Oculta el aviso de registros dañados (no toca lo guardado). */
+  ocultarAvisoDanados: () => void;
 
   // ── Campaña (respaldo / portabilidad) ──
   /** Descarga un .json con semilla + tiradas + ventas + premios. */
@@ -150,13 +168,18 @@ function nombreArchivoPdf(titulo: string, desde: number, hasta: number): string 
  * podría sortear un cartón que pertenece a otra campaña.
  */
 function estadoDeSemilla(semilla: number) {
+  const tiradas = leerTiradasDe(semilla);
+  const ventas = leerVentasDe(semilla);
+  const premios = leerPremiosDe(semilla);
   return {
     semilla,
-    registro: tiradasDe(semilla),
+    registro: tiradas.tiradas,
     preview: generarCarton(semilla),
-    ventas: ventasDe(semilla),
-    premios: premiosDe(semilla),
+    ventas: ventas.ventas,
+    premios: premios.premios,
     ultimoGanador: null,
+    registrosDanados:
+      tiradas.descartados + ventas.descartados + premios.descartados,
   };
 }
 
@@ -168,14 +191,12 @@ recordarSemilla(semillaInicial);
 export const useBingo = create<BingoState>((set, get) => ({
   cantidad: 12,
   cartonesPorHoja: CARTONES_POR_HOJA_DEFECTO,
-  semilla: semillaInicial,
-  registro: tiradasDe(semillaInicial),
-  preview: generarCarton(semillaInicial),
   generando: false,
   marca: MARCA_INICIAL,
-  ventas: ventasDe(semillaInicial),
-  premios: premiosDe(semillaInicial),
-  ultimoGanador: null,
+  // Semilla, registro, ventas, premios y el contador de registros dañados
+  // salen de la misma lectura que usa cambiar de campaña, para que abrir la
+  // app y cambiar de semilla nunca den estados distintos.
+  ...estadoDeSemilla(semillaInicial),
 
   setCantidad: (n) => set({ cantidad: Math.max(1, Math.floor(n || 1)) }),
 
@@ -206,8 +227,42 @@ export const useBingo = create<BingoState>((set, get) => ({
   },
 
   deshacerUltimaTirada: () => {
-    const { semilla } = get();
+    const { semilla, registro, ventas, premios } = get();
+    const ultima = registro[registro.length - 1];
+    if (!ultima) return { ok: true };
+
+    // Deshacer achica el total impreso: los N° de ese tramo dejan de existir,
+    // pero sus ventas seguirían entrando al bombo del sorteo (elegibles() solo
+    // mira las ventas) y se podría sortear un cartón que nadie tiene en la
+    // mano. Igual que en reiniciarCampana, registro + ventas + premios se
+    // mueven juntos; acá preferimos frenar antes que borrar en silencio lo que
+    // se vendió o, peor, lo que ya se cantó en el evento.
+    const enElTramo = (numero: number) =>
+      numero >= ultima.desde && numero <= ultima.hasta;
+    const vendidos = ventas.filter((v) => enElTramo(v.numero)).length;
+    const sorteados = premios.filter((p) => enElTramo(p.numero)).length;
+    const tramo = `entre el ${ultima.desde} y el ${ultima.hasta}`;
+
+    if (vendidos > 0) {
+      return {
+        ok: false,
+        motivo:
+          `No se puede deshacer esta tirada: hay ${vendidos} ` +
+          `${vendidos === 1 ? "cartón vendido" : "cartones vendidos"} ${tramo}. ` +
+          `${vendidos === 1 ? "Dalo" : "Dalos"} de baja primero.`,
+      };
+    }
+    if (sorteados > 0) {
+      return {
+        ok: false,
+        motivo:
+          `No se puede deshacer esta tirada: hay ${sorteados} ` +
+          `${sorteados === 1 ? "premio ya sorteado" : "premios ya sorteados"} ${tramo}.`,
+      };
+    }
+
     set({ registro: deshacerUltima(semilla) });
+    return { ok: true };
   },
 
   reiniciarCampana: () => {
@@ -255,13 +310,19 @@ export const useBingo = create<BingoState>((set, get) => ({
   // ── Ventas ────────────────────────────────────────────────────────────────
 
   venderUno: (numero, datos) => {
-    const { semilla } = get();
-    set({ ventas: agregarVenta(semilla, numero, datos) });
+    const { semilla, registro } = get();
+    // Mismo tope que venderRango: solo se vende lo ya impreso.
+    const totalImpreso = proximoDesdeDe(registro) - 1;
+    set({ ventas: agregarVenta(semilla, numero, datos, totalImpreso) });
   },
 
   venderRango: (desde, hasta, datos) => {
-    const { semilla } = get();
-    const resultado = agregarRango(semilla, desde, hasta, datos);
+    const { semilla, registro } = get();
+    // El tope de lo vendible es lo ya impreso: lo sabe el registro de tiradas,
+    // así que se lo pasamos a la capa de datos en vez de dejar la invariante
+    // solo en el formulario.
+    const totalImpreso = proximoDesdeDe(registro) - 1;
+    const resultado = agregarRango(semilla, desde, hasta, datos, totalImpreso);
     set({ ventas: resultado.ventas });
     return resultado;
   },
@@ -310,6 +371,8 @@ export const useBingo = create<BingoState>((set, get) => ({
     const { semilla } = get();
     set({ premios: reiniciarPremios(semilla), ultimoGanador: null });
   },
+
+  ocultarAvisoDanados: () => set({ registrosDanados: 0 }),
 
   // ── Campaña ───────────────────────────────────────────────────────────────
 

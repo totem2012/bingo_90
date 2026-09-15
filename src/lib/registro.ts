@@ -43,7 +43,12 @@ function leerRegistro(): Registro {
   if (!hayStorage()) return {};
   try {
     const crudo = localStorage.getItem(CLAVE_REGISTRO);
-    return crudo ? (JSON.parse(crudo) as Registro) : {};
+    if (!crudo) return {};
+    const datos: unknown = JSON.parse(crudo);
+    if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
+      return {};
+    }
+    return datos as Registro;
   } catch {
     return {};
   }
@@ -58,9 +63,60 @@ function escribirRegistro(reg: Registro): void {
   }
 }
 
+/**
+ * ¿Es una tirada bien formada? Se usa para validar lo que entra por el import
+ * de campaña (ver campana.ts) y para descartar basura al leer el storage.
+ */
+export function esTirada(v: unknown): v is Tirada {
+  if (typeof v !== "object" || v === null) return false;
+  const t = v as Record<string, unknown>;
+  return (
+    typeof t.titulo === "string" &&
+    Number.isInteger(t.cantidad) &&
+    (t.cantidad as number) >= 1 &&
+    Number.isInteger(t.desde) &&
+    (t.desde as number) >= 1 &&
+    Number.isInteger(t.hasta) &&
+    // La aritmética tiene que cerrar: el total impreso sale de `cantidad`
+    // mientras que los tramos (y el bloqueo del deshacer) salen de
+    // desde/hasta. Una tirada con `cantidad: 100, desde: 1, hasta: 5`
+    // declararía 100 cartones impresos con un tramo de 5, y las ventas del 6
+    // al 100 volverían a quedar huérfanas. La app es el único escritor
+    // legítimo de este dato, así que se exige coherencia.
+    (t.hasta as number) === (t.desde as number) + (t.cantidad as number) - 1 &&
+    typeof t.fecha === "string"
+  );
+}
+
+/** Lo leído de una semilla + cuántos registros dañados hubo que descartar. */
+export interface LecturaTiradas {
+  tiradas: Tirada[];
+  descartados: number;
+}
+
+/**
+ * Tiradas de una semilla, informando cuántos registros dañados se descartaron.
+ *
+ * Lo corrupto se descarta en vez de dejar que explote más arriba: si el storage
+ * quedó envenenado (import viejo, edición a mano) el usuario igual tiene que
+ * poder abrir la app y reimportar su respaldo, que es el único camino de
+ * recuperación que le queda. Pero descartar una tirada BAJA el total impreso,
+ * así que la próxima tirada reimprimiría N° que pueden estar vendidos: por eso
+ * el descarte se cuenta y la app lo avisa en pantalla (ver App.tsx).
+ */
+export function leerTiradasDe(semilla: number): LecturaTiradas {
+  const guardadas = leerRegistro()[String(semilla)];
+  if (guardadas === undefined) return { tiradas: [], descartados: 0 };
+  // Si lo guardado ni siquiera es una lista se perdió todo el historial de esa
+  // semilla: cuenta como un registro dañado para que el aviso salga igual.
+  if (!Array.isArray(guardadas)) return { tiradas: [], descartados: 1 };
+  const tiradas = guardadas.filter(esTirada);
+  return { tiradas, descartados: guardadas.length - tiradas.length };
+}
+
 /** Tiradas ya registradas para una semilla (ordenadas por aparición). */
 export function tiradasDe(semilla: number): Tirada[] {
-  return leerRegistro()[String(semilla)] ?? [];
+  return leerTiradasDe(semilla).tiradas;
 }
 
 /** Cuántos cartones de esa semilla ya se entregaron (suma de cantidades). */

@@ -3,6 +3,7 @@ import {
   agregarRango,
   agregarVenta,
   esNumeroVendible,
+  leerVentasDe,
   limpiarVentas,
   quitarVenta,
   ventasDe,
@@ -53,7 +54,7 @@ describe("registro de ventas", () => {
   });
 
   it("carga un cartón con los datos del comprador", () => {
-    const ventas = agregarVenta(7, 12, PEPITO);
+    const ventas = agregarVenta(7, 12, PEPITO, 50);
     expect(ventas).toHaveLength(1);
     expect(ventas[0]).toMatchObject({
       numero: 12,
@@ -64,14 +65,24 @@ describe("registro de ventas", () => {
   });
 
   it("no pisa una venta existente al recargar el mismo N°", () => {
-    agregarVenta(7, 12, PEPITO);
-    const ventas = agregarVenta(7, 12, RAMON);
+    agregarVenta(7, 12, PEPITO, 50);
+    const ventas = agregarVenta(7, 12, RAMON, 50);
     expect(ventas).toHaveLength(1);
     expect(ventas[0].comprador).toBe("Escuela Pepito");
   });
 
+  it("no se puede vender de a uno un N° que no está impreso", () => {
+    // Mismo agujero que tenía el rango: la invariante no puede vivir solo en
+    // el formulario.
+    expect(() => agregarVenta(7, 51, PEPITO, 50)).toThrow(/impres/i);
+    expect(() => agregarVenta(7, 0, PEPITO, 50)).toThrow(/impres/i);
+    expect(() => agregarVenta(7, 1.5, PEPITO, 50)).toThrow(/impres/i);
+    expect(() => agregarVenta(7, 1, PEPITO, 0)).toThrow(/impres/i);
+    expect(ventasDe(7)).toEqual([]);
+  });
+
   it("carga un rango completo de una vez", () => {
-    const { ventas, agregados, salteados } = agregarRango(7, 1, 200, PEPITO);
+    const { ventas, agregados, salteados } = agregarRango(7, 1, 200, PEPITO, 200);
     expect(agregados).toBe(200);
     expect(salteados).toBe(0);
     expect(ventas).toHaveLength(200);
@@ -80,8 +91,8 @@ describe("registro de ventas", () => {
   });
 
   it("un rango solapado saltea los ya vendidos y los informa", () => {
-    agregarRango(7, 1, 30, PEPITO);
-    const { agregados, salteados, ventas } = agregarRango(7, 20, 40, RAMON);
+    agregarRango(7, 1, 30, PEPITO, 40);
+    const { agregados, salteados, ventas } = agregarRango(7, 20, 40, RAMON, 40);
 
     expect(agregados).toBe(10); // 31..40
     expect(salteados).toBe(11); // 20..30
@@ -91,30 +102,77 @@ describe("registro de ventas", () => {
     expect(ventas.find((v) => v.numero === 35)?.comprador).toBe("Ramón");
   });
 
+  it("no se puede vender un rango que se pasa de los cartones impresos", () => {
+    // El caso que motivó la validación: llamando a la capa de datos directo
+    // se cargaban 50.000 ventas sin un solo cartón impreso.
+    expect(() => agregarRango(7, 1, 50_000, PEPITO, 0)).toThrow(/impres/i);
+    expect(() => agregarRango(7, 1, 51, PEPITO, 50)).toThrow(/impres/i);
+    expect(ventasDe(7)).toEqual([]);
+  });
+
+  it("no se puede vender un rango dado vuelta o con N° no enteros", () => {
+    expect(() => agregarRango(7, 40, 20, PEPITO, 50)).toThrow(/rango/i);
+    expect(() => agregarRango(7, 1.5, 20, PEPITO, 50)).toThrow(/rango/i);
+    expect(() => agregarRango(7, NaN, 20, PEPITO, 50)).toThrow(/rango/i);
+    expect(() => agregarRango(7, 0, 20, PEPITO, 50)).toThrow(/impres/i);
+    expect(ventasDe(7)).toEqual([]);
+  });
+
+  it("acepta el rango completo de lo impreso", () => {
+    const { agregados } = agregarRango(7, 1, 50, PEPITO, 50);
+    expect(agregados).toBe(50);
+  });
+
   it("devuelve las ventas ordenadas por N° de cartón", () => {
-    agregarVenta(7, 30, PEPITO);
-    agregarVenta(7, 5, PEPITO);
-    agregarVenta(7, 17, PEPITO);
+    agregarVenta(7, 30, PEPITO, 50);
+    agregarVenta(7, 5, PEPITO, 50);
+    agregarVenta(7, 17, PEPITO, 50);
     expect(ventasDe(7).map((v) => v.numero)).toEqual([5, 17, 30]);
   });
 
   it("quitar libera el cartón", () => {
-    agregarRango(7, 1, 3, PEPITO);
+    agregarRango(7, 1, 3, PEPITO, 3);
     const ventas = quitarVenta(7, 2);
     expect(ventas.map((v) => v.numero)).toEqual([1, 3]);
   });
 
   it("cada semilla lleva sus ventas por separado", () => {
-    agregarRango(1, 1, 10, PEPITO);
+    agregarRango(1, 1, 10, PEPITO, 10);
     expect(ventasDe(1)).toHaveLength(10);
     expect(ventasDe(2)).toHaveLength(0);
   });
 
   it("limpiar borra todas las ventas de esa semilla", () => {
-    agregarRango(1, 1, 10, PEPITO);
-    agregarRango(2, 1, 5, RAMON);
+    agregarRango(1, 1, 10, PEPITO, 10);
+    agregarRango(2, 1, 5, RAMON, 5);
     expect(limpiarVentas(1)).toEqual([]);
     expect(ventasDe(1)).toHaveLength(0);
     expect(ventasDe(2)).toHaveLength(5); // la otra semilla no se toca
+  });
+});
+
+describe("lectura de ventas dañadas", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+  });
+
+  it("descarta lo corrupto, conserva lo sano y cuenta cuánto se cayó", () => {
+    agregarVenta(7, 3, PEPITO, 50);
+    const sana = ventasDe(7)[0];
+    localStorage.setItem(
+      "bingo90:ventas:v1",
+      JSON.stringify({ "7": [null, sana, 42, { numero: 5 }] }),
+    );
+
+    expect(leerVentasDe(7)).toEqual({ ventas: [sana], descartados: 3 });
+  });
+
+  it("una semilla sin ventas no cuenta descartes", () => {
+    expect(leerVentasDe(7)).toEqual({ ventas: [], descartados: 0 });
+  });
+
+  it("si lo guardado ni siquiera es una lista, cuenta como dañado", () => {
+    localStorage.setItem("bingo90:ventas:v1", JSON.stringify({ "7": "hola" }));
+    expect(leerVentasDe(7)).toEqual({ ventas: [], descartados: 1 });
   });
 });

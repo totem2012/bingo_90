@@ -393,7 +393,10 @@ export function ConfigPanel() {
           <div className="flex gap-2 pt-1">
             <button
               type="button"
-              onClick={deshacerUltimaTirada}
+              onClick={() => {
+                const r = deshacerUltimaTirada();
+                if (!r.ok) alert(r.motivo);
+              }}
               className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:border-slate-400"
               title="Borrar la última tirada del historial"
             >

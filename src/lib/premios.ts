@@ -49,7 +49,12 @@ function leerTodo(): RegistroPremios {
   if (!hayStorage()) return {};
   try {
     const crudo = localStorage.getItem(CLAVE_PREMIOS);
-    return crudo ? (JSON.parse(crudo) as RegistroPremios) : {};
+    if (!crudo) return {};
+    const datos: unknown = JSON.parse(crudo);
+    if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
+      return {};
+    }
+    return datos as RegistroPremios;
   } catch {
     return {};
   }
@@ -64,9 +69,49 @@ function escribirTodo(reg: RegistroPremios): void {
   }
 }
 
+/**
+ * ¿Es un premio bien formado? Se usa para validar lo que entra por el import
+ * de campaña (ver campana.ts) y para descartar basura al leer el storage.
+ */
+export function esPremio(v: unknown): v is Premio {
+  if (typeof v !== "object" || v === null) return false;
+  const p = v as Record<string, unknown>;
+  return (
+    Number.isInteger(p.orden) &&
+    (p.orden as number) >= 1 &&
+    Number.isInteger(p.numero) &&
+    (p.numero as number) >= 1 &&
+    typeof p.descripcion === "string" &&
+    typeof p.comprador === "string" &&
+    typeof p.telefono === "string" &&
+    typeof p.fecha === "string"
+  );
+}
+
+/** Lo leído de una semilla + cuántos registros dañados hubo que descartar. */
+export interface LecturaPremios {
+  premios: Premio[];
+  descartados: number;
+}
+
+/**
+ * Premios de una semilla, informando cuántos registros dañados se descartaron.
+ * Igual que en registro.ts y ventas.ts: lo corrupto se descarta al leer para
+ * que un storage envenenado no impida abrir la app y reimportar el respaldo,
+ * y se cuenta para avisarlo (un premio que se cae es un premio que se cantó en
+ * el evento y desapareció del historial).
+ */
+export function leerPremiosDe(semilla: number): LecturaPremios {
+  const guardados = leerTodo()[String(semilla)];
+  if (guardados === undefined) return { premios: [], descartados: 0 };
+  if (!Array.isArray(guardados)) return { premios: [], descartados: 1 };
+  const premios = guardados.filter(esPremio);
+  return { premios, descartados: guardados.length - premios.length };
+}
+
 /** Premios sorteados para una semilla, en orden de sorteo. */
 export function premiosDe(semilla: number): Premio[] {
-  return leerTodo()[String(semilla)] ?? [];
+  return leerPremiosDe(semilla).premios;
 }
 
 /**

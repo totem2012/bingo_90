@@ -15,6 +15,8 @@ const PESTANAS: { id: Vista; etiqueta: string }[] = [
 export default function App() {
   const preview = useBingo((s) => s.preview);
   const marca = useBingo((s) => s.marca);
+  const registrosDanados = useBingo((s) => s.registrosDanados);
+  const ocultarAvisoDanados = useBingo((s) => s.ocultarAvisoDanados);
   const [vista, setVista] = useState<Vista>("generar");
 
   return (
@@ -49,6 +51,41 @@ export default function App() {
           </nav>
         </div>
       </header>
+
+      {/*
+        Al leer la campaña se descarta lo que esté dañado para que la app pueda
+        abrir igual (ver lib/registro.ts). Pero descartar una tirada BAJA el
+        total impreso y la próxima tanda reimprimiría N° que quizás ya están
+        vendidos, así que el descarte no puede pasar en silencio.
+      */}
+      {registrosDanados > 0 && (
+        <div className="border-b border-amber-300 bg-amber-50">
+          <div className="mx-auto flex max-w-5xl items-start gap-3 px-6 py-3">
+            <span aria-hidden="true" className="text-lg leading-tight">
+              ⚠️
+            </span>
+            <p className="flex-1 text-sm text-amber-900">
+              <strong className="font-semibold">
+                {registrosDanados === 1
+                  ? "Se descartó 1 registro dañado de esta campaña."
+                  : `Se descartaron ${registrosDanados} registros dañados de esta campaña.`}
+              </strong>{" "}
+              Puede haber cambiado el total de cartones entregados, o faltar
+              ventas y premios. Revisá la numeración del historial ANTES de
+              generar la próxima tirada y, si tenés el archivo de respaldo
+              (.json), importalo para recuperar lo que falta.
+            </p>
+            <button
+              type="button"
+              onClick={ocultarAvisoDanados}
+              className="shrink-0 rounded-md border border-amber-400 px-2 py-1 text-xs font-medium text-amber-900 hover:border-amber-600"
+              title="Ocultar el aviso (no recupera lo descartado)"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
 
       {vista === "generar" ? (
         /* Config (izq) + preview (der) */

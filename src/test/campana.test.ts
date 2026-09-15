@@ -19,11 +19,13 @@ function instalarLocalStorage(): void {
 /** Deja una campaña con tiradas, ventas y un premio ya sorteado. */
 function armarCampana(semilla: number): void {
   registrarTirada(semilla, "Escuela Pepito", 50);
-  agregarRango(semilla, 1, 20, {
-    comprador: "Escuela Pepito",
-    telefono: "3794-111111",
-    vendedor: "Ana",
-  });
+  agregarRango(
+    semilla,
+    1,
+    20,
+    { comprador: "Escuela Pepito", telefono: "3794-111111", vendedor: "Ana" },
+    50,
+  );
   registrarPremio(semilla, {
     descripcion: "Bicicleta",
     numero: 7,
@@ -85,7 +87,13 @@ describe("importarCampana", () => {
     const json = JSON.stringify(exportarCampana(42));
 
     // Ensuciamos la campaña después de exportar.
-    agregarRango(42, 21, 50, { comprador: "Otro", telefono: "", vendedor: "" });
+    agregarRango(
+      42,
+      21,
+      50,
+      { comprador: "Otro", telefono: "", vendedor: "" },
+      50,
+    );
     expect(ventasDe(42)).toHaveLength(50);
 
     importarCampana(JSON.parse(json));
@@ -118,5 +126,86 @@ describe("importarCampana", () => {
     expect(() => importarCampana({ version: 2, semilla: 42 })).toThrow();
     // La campaña original sigue intacta.
     expect(ventasDe(42)).toHaveLength(20);
+  });
+
+  it("rechaza listas con elementos que no son tiradas/ventas/premios", () => {
+    const base = { version: 1, semilla: 42, registro: [], ventas: [], premios: [] };
+    expect(() =>
+      importarCampana({ ...base, registro: [{ hola: 1 }] }),
+    ).toThrow(/tirada/i);
+    expect(() => importarCampana({ ...base, ventas: [null] })).toThrow(/venta/i);
+    expect(() => importarCampana({ ...base, premios: ["x"] })).toThrow(/premio/i);
+  });
+
+  it("un archivo con basura adentro no deja nada escrito ni a medias", () => {
+    armarCampana(42);
+    const antes = {
+      registro: tiradasDe(42),
+      ventas: ventasDe(42),
+      premios: premiosDe(42),
+    };
+
+    // Se validan los tres antes de escribir: aunque las tiradas del archivo
+    // sean válidas, si las ventas están podridas no se pisa NADA.
+    expect(() =>
+      importarCampana({
+        version: 1,
+        semilla: 42,
+        registro: [
+          { titulo: "Otra", cantidad: 10, desde: 1, hasta: 10, fecha: "2026-01-01" },
+        ],
+        ventas: [null, 42],
+        premios: [],
+      }),
+    ).toThrow(/venta/i);
+
+    expect(tiradasDe(42)).toEqual(antes.registro);
+    expect(ventasDe(42)).toEqual(antes.ventas);
+    expect(premiosDe(42)).toEqual(antes.premios);
+  });
+
+  it("importar basura no puede dejar la app sin arrancar", () => {
+    expect(() =>
+      importarCampana({
+        version: 1,
+        semilla: 42,
+        registro: [{ hola: 1 }],
+        ventas: [null],
+        premios: ["x"],
+      }),
+    ).toThrow();
+    // Lo que lee el store al abrir la app (state/store.ts) no explota: antes
+    // `ventasDe` rompía en el sort y la pantalla quedaba en blanco.
+    expect(() => ventasDe(42)).not.toThrow();
+    expect(ventasDe(42)).toEqual([]);
+    expect(tiradasDe(42)).toEqual([]);
+    expect(premiosDe(42)).toEqual([]);
+  });
+
+  it("un storage ya envenenado se lee vacío en vez de romper la app", () => {
+    // Simula el localStorage que dejaba un import corrupto de una versión
+    // anterior: sin esto no había forma de volver a abrir la app.
+    localStorage.setItem("bingo90:ventas:v1", JSON.stringify({ "42": [null, 42] }));
+    localStorage.setItem("bingo90:registro:v1", JSON.stringify({ "42": [{ hola: 1 }] }));
+    localStorage.setItem("bingo90:premios:v1", JSON.stringify({ "42": ["x"] }));
+
+    expect(ventasDe(42)).toEqual([]);
+    expect(tiradasDe(42)).toEqual([]);
+    expect(premiosDe(42)).toEqual([]);
+  });
+
+  it("conserva las ventas sanas aunque una esté podrida", () => {
+    const sana = {
+      numero: 3,
+      comprador: "Ana",
+      telefono: "",
+      vendedor: "",
+      fecha: "2026-01-01T00:00:00.000Z",
+    };
+    localStorage.setItem(
+      "bingo90:ventas:v1",
+      JSON.stringify({ "42": [null, sana] }),
+    );
+    expect(ventasDe(42)).toEqual([sana]);
   });
 });

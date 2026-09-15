@@ -10,9 +10,19 @@
 // servidor.
 // ─────────────────────────────────────────────────────────────────────────
 
-import { reemplazarTiradas, tiradasDe, type Tirada } from "./registro.ts";
-import { reemplazarVentas, ventasDe, type Venta } from "./ventas.ts";
-import { premiosDe, reemplazarPremios, type Premio } from "./premios.ts";
+import {
+  esTirada,
+  reemplazarTiradas,
+  tiradasDe,
+  type Tirada,
+} from "./registro.ts";
+import { esVenta, reemplazarVentas, ventasDe, type Venta } from "./ventas.ts";
+import {
+  esPremio,
+  premiosDe,
+  reemplazarPremios,
+  type Premio,
+} from "./premios.ts";
 
 /** Contenido del archivo .json de campaña. */
 export interface CampanaExportada {
@@ -53,6 +63,25 @@ function esArreglo(v: unknown): v is unknown[] {
 }
 
 /**
+ * Valida la lista elemento por elemento. No alcanza con que sea un arreglo:
+ * un `.json` con basura adentro (ej: `ventas: [null]`) se guardaba igual y
+ * después rompía la app al leerlo, sin forma de deshacerlo desde la pantalla.
+ */
+function validarLista<T>(
+  lista: unknown[],
+  es: (v: unknown) => v is T,
+  singular: string,
+): T[] {
+  const i = lista.findIndex((el) => !es(el));
+  if (i !== -1) {
+    throw new Error(
+      `El archivo tiene ${singular} con datos inválidos (el N° ${i + 1} de la lista). No se importó nada.`,
+    );
+  }
+  return lista as T[];
+}
+
+/**
  * Valida un objeto leído de un .json y, si está bien formado, lo escribe
  * pisando lo que hubiera de esa semilla. Lanza un Error con un mensaje
  * entendible si el archivo no sirve, para poder mostrarlo tal cual.
@@ -82,9 +111,13 @@ export function importarCampana(json: unknown): CampanaExportada {
   }
 
   const semilla = datos.semilla as number;
-  const registro = datos.registro as Tirada[];
-  const ventas = datos.ventas as Venta[];
-  const premios = datos.premios as Premio[];
+  // Todo o nada: primero se valida el archivo COMPLETO y recién después se
+  // escribe. Si la validación de las ventas fallara con las tiradas ya
+  // escritas, la campaña quedaría a medio pisar (numeración nueva con ventas
+  // viejas) y no hay forma de volver atrás.
+  const registro = validarLista(datos.registro, esTirada, "una tirada");
+  const ventas = validarLista(datos.ventas, esVenta, "una venta");
+  const premios = validarLista(datos.premios, esPremio, "un premio");
 
   reemplazarTiradas(semilla, registro);
   reemplazarVentas(semilla, ventas);
@@ -96,6 +129,9 @@ export function importarCampana(json: unknown): CampanaExportada {
     registro,
     ventas,
     premios,
-    exportadoEn: datos.exportadoEn ?? new Date().toISOString(),
+    exportadoEn:
+      typeof datos.exportadoEn === "string"
+        ? datos.exportadoEn
+        : new Date().toISOString(),
   };
 }
