@@ -1,7 +1,12 @@
 import type { Config } from "tailwindcss";
 
 export default {
-  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  // Los tests quedan fuera del escaneo: Tailwind busca nombres de clase en
+  // cualquier texto, comentarios incluidos, así que una palabra corriente en
+  // castellano que además sea una utilidad ("visible", "invisible", "bloque"…)
+  // metía una regla muerta en el CSS que baja el usuario. No se puede esquivar
+  // escribiendo con cuidado: pasa incluso al redactar la advertencia.
+  content: ["./index.html", "./src/**/*.{ts,tsx}", "!./src/test/**"],
   theme: {
     extend: {
       colors: {
