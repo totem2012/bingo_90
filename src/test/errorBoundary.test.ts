@@ -1,8 +1,9 @@
-// Del boundary solo se puede testear acá la parte pura: rescatar la semilla.
-// El comportamiento de atrapar un error de render NO se puede cubrir con estos
-// tests: los boundaries no funcionan en render de servidor, que es lo que usa
-// `renderToStaticMarkup`, y ahí el error se propaga en vez de ser atrapado.
-// Eso se verifica en el navegador.
+// Acá va la parte pura del boundary: rescatar la semilla. Corre en node, sin
+// DOM, porque no lo necesita.
+// Que el boundary ATRAPE un error de render se prueba en
+// errorBoundaryRender.test.tsx, que monta React en jsdom: en render de
+// servidor los boundaries no funcionan y el error se propaga, así que eso no
+// se podía cubrir desde acá.
 import { describe, it, expect } from "vitest";
 import { semillaGuardada } from "../components/ErrorBoundary.tsx";
 
