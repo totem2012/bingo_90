@@ -172,3 +172,70 @@ describe("texto de la barra de progreso", () => {
     expect(textoProgreso(200, 200)).toBe("Armando el archivo…");
   });
 });
+
+/** Renderiza un panel suelto, con el estado que salga del storage sembrado. */
+async function renderizarPanel(cual: "ventas" | "sorteo"): Promise<string> {
+  vi.resetModules();
+  const Panel =
+    cual === "ventas"
+      ? (await import("../components/PanelVentas.tsx")).PanelVentas
+      : (await import("../components/PanelSorteo.tsx")).PanelSorteo;
+  return renderToStaticMarkup(createElement(Panel));
+}
+
+describe("lista de ventas", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+    localStorage.setItem("bingo90:semilla:v1", String(SEMILLA));
+    registrarTirada(SEMILLA, "Escuela Pepito", 100);
+  });
+
+  it("muestra el vendedor, que hasta ahora solo se podía buscar", () => {
+    // El buscador dice "Buscar por N°, comprador o vendedor", así que la lista
+    // tiene que mostrar ese dato: prometía algo que no se veía.
+    agregarRango(
+      SEMILLA,
+      1,
+      1,
+      { comprador: "María Fernández", telefono: "3794-111111", vendedor: "Ana" },
+      100,
+    );
+
+    return renderizarPanel("ventas").then((html) => {
+      expect(html).toMatch(/María Fernández/);
+      expect(html).toMatch(/vendió Ana/);
+    });
+  });
+
+  it("sin vendedor cargado no inventa nada", async () => {
+    agregarRango(
+      SEMILLA,
+      1,
+      1,
+      { comprador: "María Fernández", telefono: "", vendedor: "" },
+      100,
+    );
+
+    const html = await renderizarPanel("ventas");
+
+    expect(html).toMatch(/María Fernández/);
+    expect(html).not.toMatch(/vendió/);
+  });
+});
+
+describe("aviso de que no hay ventas", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+    localStorage.setItem("bingo90:semilla:v1", String(SEMILLA));
+  });
+
+  it("no le dice al usuario dónde mirar", async () => {
+    // En móvil el sorteo va arriba y las ventas abajo, así que "cargalos
+    // arriba" era falso. Un texto que no depende del layout no se rompe
+    // cuando alguien reordena.
+    const html = await renderizarPanel("sorteo");
+
+    expect(html).toMatch(/Cargá los cartones vendidos para poder sortear/);
+    expect(html).not.toMatch(/Cargalos arriba|más abajo|acá abajo/);
+  });
+});

@@ -296,10 +296,16 @@ export function PanelVentas() {
                 <span className="w-16 shrink-0 font-mono font-semibold text-slate-700">
                   N° {v.numero}
                 </span>
+                {/* El comprador manda; teléfono y vendedor van en gris a su
+                    lado. El vendedor se podía buscar pero no se veía: el
+                    buscador prometía un dato que la lista no mostraba. */}
                 <span className="min-w-0 flex-1 truncate text-slate-700">
                   {v.comprador || "(sin nombre)"}
                   {v.telefono && (
                     <span className="text-slate-500"> · {v.telefono}</span>
+                  )}
+                  {v.vendedor && (
+                    <span className="text-slate-500"> · vendió {v.vendedor}</span>
                   )}
                 </span>
                 <button
