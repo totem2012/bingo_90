@@ -82,6 +82,48 @@ describe("pantalla completa del sorteo", () => {
     await usuario.click(screen.getByRole("button", { name: /Pantalla completa/i }));
   }
 
+  // El caso que faltaba: si la pantalla completa se abriera recién con un
+  // ganador en pantalla, el primer premio —el que más se espera— sería el
+  // único que nunca se puede cantar en grande.
+  it("se abre sin ningún premio sorteado y el primero ya sale en grande", async () => {
+    await montarPanel();
+
+    await usuario.click(screen.getByRole("button", { name: /Pantalla completa/i }));
+
+    // Con el bombo lleno y sin ganadores, la pantalla arranca pidiendo el premio.
+    expect(within(escenario()).getByText("Primer premio")).toBeDefined();
+    const campo = within(escenario()).getByLabelText(/Premio/i);
+    expect(document.activeElement).toBe(campo);
+
+    await usuario.type(campo, "Bicicleta");
+    await usuario.click(
+      within(escenario()).getByRole("button", { name: /Sortear ganador/i }),
+    );
+    await esperarAlGanador();
+
+    // El primer ganador se canta sin haber salido nunca de la pantalla.
+    expect(screen.queryByRole("dialog")).not.toBeNull();
+    expect(within(escenario()).getByText("Bicicleta")).toBeDefined();
+    expect(within(escenario()).getByText("María Fernández")).toBeDefined();
+    const numero = numeroCantado(escenario());
+    expect(numero).toBeGreaterThanOrEqual(150);
+    expect(numero).toBeLessThanOrEqual(160);
+  });
+
+  it("sin ganador todavía, se puede salir con el botón y con Escape", async () => {
+    await montarPanel();
+    await usuario.click(screen.getByRole("button", { name: /Pantalla completa/i }));
+
+    // Sin ganador previo no existe "Volver al último ganador": si no hubiera
+    // un Salir, la única forma de cerrar sería el teclado.
+    await usuario.click(within(escenario()).getByRole("button", { name: /Salir/i }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await usuario.click(screen.getByRole("button", { name: /Pantalla completa/i }));
+    await usuario.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("junto al ganador NO hay ningún botón que sortee", async () => {
     await cantarPrimerPremio();
 

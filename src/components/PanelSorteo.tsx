@@ -266,8 +266,12 @@ export function PanelSorteo() {
     setVerCarton(false);
 
     // Ruleta visual: vamos mostrando N° al azar del bombo mientras "gira".
+    // El primero va ya, sin esperar al primer tick: en el sorteo inicial no
+    // hay N° anterior en pantalla, y ese hueco de 70 ms era un frame vacío.
+    const alAzar = () => enJuego[Math.floor(Math.random() * enJuego.length)];
+    setNumeroVisible(alAzar());
     timers.current.intervalo = window.setInterval(() => {
-      setNumeroVisible(enJuego[Math.floor(Math.random() * enJuego.length)]);
+      setNumeroVisible(alAzar());
     }, PASO_ANIMACION);
 
     timers.current.fin = window.setTimeout(() => {
@@ -289,6 +293,15 @@ export function PanelSorteo() {
     }, DURACION_SORTEO);
   }
 
+  // Qué le toca mostrar a la pantalla completa. Se deriva, no se guarda: con
+  // un flag más que mantener sincronizado, "deshacer el único premio" o
+  // "reiniciar sorteos" dejaban la pantalla mostrando un ganador que ya no
+  // existe. Mientras gira el bombo siempre manda el N°, aunque se haya entrado
+  // por los controles.
+  const hayGanadorAMostrar =
+    numeroVisible !== null && (girando || ultimoGanador !== null);
+  const mostrandoControles = !girando && (preparando || !hayGanadorAMostrar);
+
   const fmtFecha = (iso: string) =>
     new Date(iso).toLocaleDateString("es-AR", {
       day: "2-digit",
@@ -300,12 +313,32 @@ export function PanelSorteo() {
     <div className="flex flex-col gap-6">
       {/* ── Control del sorteo ── */}
       <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-slate-800">Sorteo</h2>
-          <span className="text-sm text-slate-500">
-            <strong className="text-slate-700">{enJuego.length}</strong> cartones
-            en el bombo
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-500">
+              <strong className="text-slate-700">{enJuego.length}</strong>{" "}
+              cartones en el bombo
+            </span>
+            {/* Acá y no junto al ganador: si el botón apareciera recién con el
+                primer premio ya cantado, el primer ganador sería el único que
+                nunca se puede mostrar en grande, que es para lo que existe
+                esta pantalla. */}
+            {(enJuego.length > 0 || ultimoGanador) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setVerCarton(false);
+                  setPreparando(false);
+                  setPantallaCompleta(true);
+                }}
+                className="rounded-md border border-marca-600 px-3 py-1.5 text-sm font-medium text-marca-700 hover:bg-marca-100 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
+                title="Mostrar el sorteo en grande para cantarlo en el salón"
+              >
+                ⛶ Pantalla completa
+              </button>
+            )}
+          </div>
         </div>
 
         <ControlesSorteo
@@ -345,22 +378,6 @@ export function PanelSorteo() {
             aterrizando={aterrizando}
             tono="tarjeta"
           />
-          {!girando && ultimoGanador && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setVerCarton(false);
-                  setPreparando(false);
-                  setPantallaCompleta(true);
-                }}
-                className="mt-2 rounded-md border border-marca-600 px-3 py-1.5 text-sm font-medium text-marca-700 hover:bg-marca-100 focus-visible:ring-2 focus-visible:ring-marca-500 focus-visible:ring-offset-2"
-                title="Mostrarlo grande para cantarlo en el salón"
-              >
-                ⛶ Pantalla completa
-              </button>
-            </>
-          )}
         </div>
       )}
 
@@ -370,21 +387,26 @@ export function PanelSorteo() {
           propósito —fondo plano, tipografía grande, nada de efectos— porque lo
           que importa es que se lea.
 
-          Se puede cantar una seguidilla entera sin salir, pero en dos pasos
+          Se entra ANTES de tener un ganador: si hiciera falta uno para abrirla,
+          el primer premio —el que más se espera— sería el único que no se
+          puede cantar en grande. Sin ganador todavía, la pantalla arranca
+          mostrando los controles y el primer sorteo ya sale proyectado.
+
+          Se canta una seguidilla entera sin salir, pero en dos pasos
           deliberados: el botón de sortear no aparece nunca junto al ganador.
           El contenido lo arman los mismos DatosGanador y ControlesSorteo que
           el panel, así que esto no es una segunda pantalla que mantener. */}
-      {pantallaCompleta && (ultimoGanador || girando) && numeroVisible !== null && (
+      {pantallaCompleta && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Sorteo en pantalla completa"
           className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 overflow-auto bg-marca-900 p-6 text-center"
         >
-          {preparando && !girando ? (
+          {mostrandoControles || numeroVisible === null ? (
             <>
               <span className="text-2xl font-semibold text-marca-100">
-                Próximo premio
+                {ultimoGanador ? "Próximo premio" : "Primer premio"}
               </span>
               <ControlesSorteo
                 tono="escenario"
@@ -396,8 +418,21 @@ export function PanelSorteo() {
                 onCancelar={ultimoGanador ? () => setPreparando(false) : undefined}
               />
               <span className="text-sm text-marca-200">
-                {enJuego.length} cartones en el bombo
+                {enJuego.length > 0
+                  ? `${enJuego.length} cartones en el bombo`
+                  : ventas.length === 0
+                    ? "Todavía no cargaste ningún cartón vendido."
+                    : "No quedan cartones en el bombo."}
               </span>
+              {/* Sin ganador previo no hay "Volver al último ganador", así que
+                  esta es la única salida con el mouse. */}
+              <button
+                type="button"
+                onClick={() => setPantallaCompleta(false)}
+                className="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-marca-900 hover:bg-marca-50 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-marca-900"
+              >
+                Salir (Esc)
+              </button>
             </>
           ) : (
             <>
