@@ -19,23 +19,34 @@ import {
 import { esVenta, reemplazarVentas, ventasDe, type Venta } from "./ventas.ts";
 import {
   esPremio,
+  normalizarPremio,
   premiosDe,
   reemplazarPremios,
   type Premio,
 } from "./premios.ts";
+import {
+  bolillasDe,
+  esListaDeBolillas,
+  reemplazarBolillas,
+} from "./bolillas.ts";
 
 /** Contenido del archivo .json de campaña. */
 export interface CampanaExportada {
-  /** Versión del formato, para poder migrar más adelante. */
-  version: 1;
+  /**
+   * Versión del formato. La 2 sumó las bolillas del juego; la 1 se sigue
+   * pudiendo importar (se toma como un juego sin bolillas).
+   */
+  version: 2;
   /** Semilla = identidad de la campaña. */
   semilla: number;
   /** Tiradas ya generadas (define la numeración de los cartones impresos). */
   registro: Tirada[];
   /** Cartones vendidos y sus compradores. */
   ventas: Venta[];
-  /** Premios ya sorteados. */
+  /** Premios ya ganados (bolillero y sorteos). */
   premios: Premio[];
+  /** Bolillas que salieron del bolillero, en orden. */
+  bolillas: number[];
   /** Fecha de exportación en ISO. */
   exportadoEn: string;
 }
@@ -43,11 +54,12 @@ export interface CampanaExportada {
 /** Junta todo lo guardado de una semilla en un objeto exportable. */
 export function exportarCampana(semilla: number): CampanaExportada {
   return {
-    version: 1,
+    version: 2,
     semilla,
     registro: tiradasDe(semilla),
     ventas: ventasDe(semilla),
     premios: premiosDe(semilla),
+    bolillas: bolillasDe(semilla),
     exportadoEn: new Date().toISOString(),
   };
 }
@@ -90,9 +102,11 @@ export function importarCampana(json: unknown): CampanaExportada {
   if (typeof json !== "object" || json === null) {
     throw new Error("El archivo no tiene el formato esperado.");
   }
-  const datos = json as Partial<CampanaExportada>;
+  const datos = json as Partial<Omit<CampanaExportada, "version">> & {
+    version?: unknown;
+  };
 
-  if (datos.version !== 1) {
+  if (datos.version !== 1 && datos.version !== 2) {
     throw new Error(
       "El archivo fue creado con otra versión de la app y no se puede importar.",
     );
@@ -117,18 +131,32 @@ export function importarCampana(json: unknown): CampanaExportada {
   // viejas) y no hay forma de volver atrás.
   const registro = validarLista(datos.registro, esTirada, "una tirada");
   const ventas = validarLista(datos.ventas, esVenta, "una venta");
-  const premios = validarLista(datos.premios, esPremio, "un premio");
+  const premios = validarLista(datos.premios, esPremio, "un premio").map(
+    normalizarPremio,
+  );
+  // Los archivos de la versión 1 son de antes del bolillero: no traen bolillas.
+  let bolillas: number[] = [];
+  if (datos.version === 2) {
+    if (!esListaDeBolillas(datos.bolillas)) {
+      throw new Error(
+        "El archivo tiene bolillas con datos inválidos (o repetidas). No se importó nada.",
+      );
+    }
+    bolillas = datos.bolillas;
+  }
 
   reemplazarTiradas(semilla, registro);
   reemplazarVentas(semilla, ventas);
   reemplazarPremios(semilla, premios);
+  reemplazarBolillas(semilla, bolillas);
 
   return {
-    version: 1,
+    version: 2,
     semilla,
     registro,
     ventas,
     premios,
+    bolillas,
     exportadoEn:
       typeof datos.exportadoEn === "string"
         ? datos.exportadoEn

@@ -5,6 +5,7 @@ import {
   leerPremiosDe,
   premiosDe,
   registrarPremio,
+  registrarPremios,
   reiniciarPremios,
   reemplazarPremios,
   type DatosPremio,
@@ -186,5 +187,67 @@ describe("lectura de premios dañados", () => {
 
   it("no haber guardado nunca nada NO es ilegible", () => {
     expect(leerPremiosDe(7).ilegible).toBe(false);
+  });
+});
+
+describe("premios del juego", () => {
+  beforeEach(() => {
+    const data = new Map<string, string>();
+    // @ts-expect-error: definimos un localStorage simplificado para el test.
+    globalThis.localStorage = {
+      getItem: (k: string) => (data.has(k) ? data.get(k)! : null),
+      setItem: (k: string, v: string) => void data.set(k, v),
+      removeItem: (k: string) => void data.delete(k),
+      clear: () => data.clear(),
+    };
+  });
+
+  it("los premios guardados antes de las etapas se leen como sorteos", () => {
+    localStorage.setItem(
+      "bingo90:premios:v1",
+      JSON.stringify({
+        "7": [
+          {
+            orden: 1,
+            descripcion: "Bici",
+            numero: 7,
+            comprador: "Ana",
+            telefono: "",
+            fecha: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const [p] = premiosDe(7);
+    expect(p.modalidad).toBe("sorteo");
+    expect(p.etapa).toBeUndefined();
+  });
+
+  it("un empate se registra de una vez, con órdenes seguidos", () => {
+    registrarPremio(7, BICI);
+    const lista = registrarPremios(7, [
+      { ...TELE, modalidad: "cuaterna", etapa: 0, bolillas: 14 },
+      { ...BICI, numero: 30, modalidad: "cuaterna", etapa: 0, bolillas: 14 },
+    ]);
+
+    expect(lista.map((p) => p.orden)).toEqual([1, 2, 3]);
+    expect(lista.slice(1).map((p) => p.numero)).toEqual([12, 30]);
+    expect(lista[1]).toMatchObject({ modalidad: "cuaterna", etapa: 0, bolillas: 14 });
+    expect(premiosDe(7)).toEqual(lista);
+  });
+
+  it("rechaza una modalidad o etapa inventadas", () => {
+    const base = {
+      orden: 1,
+      descripcion: "",
+      numero: 7,
+      comprador: "Ana",
+      telefono: "",
+      fecha: "2026-01-01T00:00:00.000Z",
+    };
+    expect(esPremio({ ...base, modalidad: "linea" })).toBe(false);
+    expect(esPremio({ ...base, etapa: -1 })).toBe(false);
+    expect(esPremio({ ...base, modalidad: "fila", etapa: 2, bolillas: 30 })).toBe(true);
   });
 });

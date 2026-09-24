@@ -50,8 +50,9 @@ import {
 import {
   deshacerUltimoPremio,
   leerPremiosDe,
-  registrarPremio,
+  registrarPremios,
   reiniciarPremios,
+  type DatosPremio,
   type Premio,
 } from "../lib/premios.ts";
 import {
@@ -59,7 +60,21 @@ import {
   importarCampana,
   nombreArchivoCampana,
 } from "../lib/campana.ts";
-import { elegibles, sortearUno } from "../core/sorteo.ts";
+import { sortearUno } from "../core/sorteo.ts";
+import {
+  SECUENCIA,
+  TOTAL_BOLILLAS,
+  esModalidadBolillero,
+  etapaActual,
+  ganadoresDe,
+  sacarBolilla as sacarBolillaAlAzar,
+  type CartonEnJuego,
+} from "../core/juego.ts";
+import {
+  agregarBolilla,
+  leerBolillasDe,
+  reiniciarBolillas,
+} from "../lib/bolillas.ts";
 import {
   alCambiarPersistencia,
   estadoPersistencia,
@@ -102,12 +117,19 @@ export interface BingoState {
    * pantalla pero no va a estar la próxima vez que abra.
    */
   logosGuardados: boolean;
-  /** Cartones vendidos de la semilla actual (candidatos al sorteo). */
+  /** Cartones vendidos de la semilla actual (los únicos que juegan). */
   ventas: Venta[];
-  /** Premios ya sorteados en la semilla actual. */
+  /** Premios ya ganados en la semilla actual (bolillero y sorteos). */
   premios: Premio[];
-  /** Último premio sorteado, para destacarlo en pantalla. */
-  ultimoGanador: Premio | null;
+  /** Bolillas que salieron del bolillero, en orden de salida. */
+  bolillas: number[];
+  /**
+   * Ganadores de la etapa que se acaba de cerrar, para mostrarlos hasta que
+   * el operador pase a la siguiente (`continuar`). Varios = empate. No se
+   * guarda: al recargar, la pantalla arranca en la etapa en curso y lo ganado
+   * queda en el historial.
+   */
+  ultimoResultado: Premio[];
   /**
    * Cuántos registros dañados se descartaron al leer la campaña actual. Se
    * avisa en pantalla (App.tsx) porque el descarte puede haber bajado el total
@@ -163,13 +185,30 @@ export interface BingoState {
   /** Borra todas las ventas de la semilla actual. */
   borrarVentas: () => void;
 
-  // ── Sorteo ──
-  /** Sortea un ganador entre los vendidos que todavía no ganaron. */
+  // ── Juego ──
+  /**
+   * Saca una bolilla y revisa si algún cartón vendido ganó la etapa en curso
+   * (cuaterna, fila o cartón lleno). `descripcion` es el premio de la etapa,
+   * que se guarda si hay ganadores. Devuelve null si ahora no corresponde
+   * sacar bolilla (etapa de sorteo, juego terminado, sin vendidos).
+   */
+  sacarBolilla: (
+    descripcion: string,
+  ) => { bolilla: number; ganadores: Premio[] } | null;
+  /**
+   * Sortea un ganador de la etapa de sorteo en curso entre TODOS los
+   * vendidos, aunque ya hayan ganado otra cosa.
+   */
   sortearGanador: (descripcion: string) => Premio | null;
-  /** Borra el último premio (el cartón vuelve al bombo). */
-  deshacerPremio: () => void;
-  /** Borra todo el historial de premios. */
-  borrarPremios: () => void;
+  /** Deja de mostrar el resultado de la última etapa y pasa a la siguiente. */
+  continuar: () => void;
+  /**
+   * Borra el último premio si fue un sorteo. Uno del bolillero no se puede
+   * deshacer: la bolilla sigue afuera y el mismo cartón volvería a ganar.
+   */
+  deshacerPremio: () => boolean;
+  /** Empieza el juego de cero: vuelven todas las bolillas y se borran los premios. */
+  reiniciarJuego: () => void;
 
   /** Oculta el aviso de datos dañados o ilegibles (no toca lo guardado). */
   ocultarAvisoDatos: () => void;
@@ -225,16 +264,65 @@ function estadoDeSemilla(semilla: number) {
   const tiradas = leerTiradasDe(semilla);
   const ventas = leerVentasDe(semilla);
   const premios = leerPremiosDe(semilla);
+  const bolillas = leerBolillasDe(semilla);
   return {
     semilla,
     registro: tiradas.tiradas,
     preview: generarCarton(semilla),
     ventas: ventas.ventas,
     premios: premios.premios,
-    ultimoGanador: null,
+    bolillas: bolillas.bolillas,
+    ultimoResultado: [],
     registrosDanados:
-      tiradas.descartados + ventas.descartados + premios.descartados,
-    datosIlegibles: tiradas.ilegible || ventas.ilegible || premios.ilegible,
+      tiradas.descartados +
+      ventas.descartados +
+      premios.descartados +
+      bolillas.descartados,
+    datosIlegibles:
+      tiradas.ilegible || ventas.ilegible || premios.ilegible || bolillas.ilegible,
+  };
+}
+
+/**
+ * Cartones regenerados de la semilla, del N° 1 al más alto que se pidió.
+ * Revisar a los ganadores necesita los 15 números de cada vendido después de
+ * CADA bolilla, y `generarLote` es O(n) porque recorre la secuencia desde el
+ * principio: pedirlos de a uno sería O(n²) por bolilla. Con un solo lote
+ * cacheado, la primera bolilla paga ~180 ms si hay 20.000 cartones y las
+ * siguientes nada.
+ */
+let loteCacheado: { semilla: number; cartones: Carton[] } | null = null;
+
+function cartonesVendidos(semilla: number, ventas: Venta[]): CartonEnJuego[] {
+  const maximo = ventas.reduce((m, v) => Math.max(m, v.numero), 0);
+  if (maximo === 0) return [];
+  if (
+    !loteCacheado ||
+    loteCacheado.semilla !== semilla ||
+    loteCacheado.cartones.length < maximo
+  ) {
+    loteCacheado = {
+      semilla,
+      cartones: generarLote({ cantidad: maximo, semilla, desde: 1 }).cartones,
+    };
+  }
+  const { cartones } = loteCacheado;
+  return ventas.map((v) => ({ numero: v.numero, carton: cartones[v.numero - 1] }));
+}
+
+/** Datos del premio de un cartón, con el snapshot del comprador. */
+function datosPremio(
+  numero: number,
+  ventas: Venta[],
+  extra: Omit<DatosPremio, "numero" | "comprador" | "telefono">,
+): DatosPremio {
+  const venta = ventas.find((v) => v.numero === numero);
+  return {
+    ...extra,
+    numero,
+    // Snapshot: si después se edita la venta, lo cantado no cambia.
+    comprador: venta?.comprador ?? "",
+    telefono: venta?.telefono ?? "",
   };
 }
 
@@ -304,8 +392,7 @@ export const useBingo = create<BingoState>((set, get) => ({
     if (!ultima) return { ok: true };
 
     // Deshacer achica el total impreso: los N° de ese tramo dejan de existir,
-    // pero sus ventas seguirían entrando al bombo del sorteo (elegibles() solo
-    // mira las ventas) y se podría sortear un cartón que nadie tiene en la
+    // pero sus ventas seguirían jugando (el juego solo mira las ventas) y se podría sortear un cartón que nadie tiene en la
     // mano. Igual que en reiniciarCampana, registro + ventas + premios se
     // mueven juntos; acá preferimos frenar antes que borrar en silencio lo que
     // se vendió o, peor, lo que ya se cantó en el evento.
@@ -345,6 +432,7 @@ export const useBingo = create<BingoState>((set, get) => ({
     reiniciarSemilla(semilla);
     limpiarVentas(semilla);
     reiniciarPremios(semilla);
+    reiniciarBolillas(semilla);
     // Y se relee por el mismo camino que setSemilla/nuevaSemilla/importar en
     // vez de armar el estado a mano: esta función ya se quedó atrás una vez
     // (el aviso de datos dañados seguía en pantalla después de reiniciar) y
@@ -414,37 +502,77 @@ export const useBingo = create<BingoState>((set, get) => ({
 
   // ── Sorteo ────────────────────────────────────────────────────────────────
 
+  sacarBolilla: (descripcion) => {
+    const { semilla, ventas, premios, bolillas } = get();
+    const etapa = etapaActual(premios);
+    if (etapa === null) return null;
+    const modalidad = SECUENCIA[etapa];
+    if (!esModalidadBolillero(modalidad)) return null;
+    if (ventas.length === 0 || bolillas.length >= TOTAL_BOLILLAS) return null;
+
+    const bolilla = sacarBolillaAlAzar(bolillas);
+    const salidas = agregarBolilla(semilla, bolilla);
+    const numeros = ganadoresDe(
+      cartonesVendidos(semilla, ventas),
+      new Set(salidas),
+      modalidad,
+    );
+    if (numeros.length === 0) {
+      set({ bolillas: salidas });
+      return { bolilla, ganadores: [] };
+    }
+
+    // Empate: ganan todos los que completaron con esta bolilla.
+    const actualizados = registrarPremios(
+      semilla,
+      numeros.map((numero) =>
+        datosPremio(numero, ventas, {
+          descripcion,
+          modalidad,
+          etapa,
+          bolillas: salidas.length,
+        }),
+      ),
+    );
+    const ganadores = actualizados.slice(-numeros.length);
+    set({ bolillas: salidas, premios: actualizados, ultimoResultado: ganadores });
+    return { bolilla, ganadores };
+  },
+
   sortearGanador: (descripcion) => {
     const { semilla, ventas, premios } = get();
-    // Los que ya ganaron salen del bombo: un cartón no puede llevarse dos premios.
-    const enJuego = elegibles(
-      ventas.map((v) => v.numero),
-      premios.map((p) => p.numero),
-    );
-    if (enJuego.length === 0) return null;
+    const etapa = etapaActual(premios);
+    if (etapa === null || SECUENCIA[etapa] !== "sorteo") return null;
+    // Entran TODOS los vendidos, aunque ya hayan ganado otra cosa: así lo
+    // juega el cliente.
+    if (ventas.length === 0) return null;
 
-    const numero = sortearUno(enJuego);
-    const venta = ventas.find((v) => v.numero === numero);
-    const actualizados = registrarPremio(semilla, {
-      descripcion,
-      numero,
-      // Snapshot: si después se edita la venta, lo cantado no cambia.
-      comprador: venta?.comprador ?? "",
-      telefono: venta?.telefono ?? "",
-    });
+    const numero = sortearUno(ventas.map((v) => v.numero));
+    const actualizados = registrarPremios(semilla, [
+      datosPremio(numero, ventas, { descripcion, modalidad: "sorteo", etapa }),
+    ]);
     const ganador = actualizados[actualizados.length - 1];
-    set({ premios: actualizados, ultimoGanador: ganador });
+    set({ premios: actualizados, ultimoResultado: [ganador] });
     return ganador;
   },
 
+  continuar: () => set({ ultimoResultado: [] }),
+
   deshacerPremio: () => {
-    const { semilla } = get();
-    set({ premios: deshacerUltimoPremio(semilla), ultimoGanador: null });
+    const { semilla, premios } = get();
+    const ultimo = premios[premios.length - 1];
+    if (!ultimo || ultimo.modalidad !== "sorteo") return false;
+    set({ premios: deshacerUltimoPremio(semilla), ultimoResultado: [] });
+    return true;
   },
 
-  borrarPremios: () => {
+  reiniciarJuego: () => {
     const { semilla } = get();
-    set({ premios: reiniciarPremios(semilla), ultimoGanador: null });
+    set({
+      bolillas: reiniciarBolillas(semilla),
+      premios: reiniciarPremios(semilla),
+      ultimoResultado: [],
+    });
   },
 
   ocultarAvisoDatos: () => set({ registrosDanados: 0, datosIlegibles: false }),

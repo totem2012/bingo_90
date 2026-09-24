@@ -14,18 +14,41 @@ personalizables. Corre 100% en el navegador (sin servidor, sin cuentas).
 El lote es **reproducible**: con la misma semilla se obtienen los mismos
 cartones (útil para reimprimir sin duplicar).
 
-## Ventas y sorteo
+## Ventas
 
-La pestaña **Ventas y sorteo** cierra el ciclo después de imprimir:
+La pestaña **Ventas** registra qué cartones se vendieron, después de imprimir:
+por rango (“del 1 al 200 → Escuela Pepito”) o de a uno con nombre, teléfono y
+vendedor. Solo se pueden vender cartones que ya se imprimieron, y un N° no se
+puede vender dos veces. **Solo los cartones vendidos juegan.**
 
-- **Cargar los vendidos**: por rango (“del 1 al 200 → Escuela Pepito”) o de a
-  uno con nombre, teléfono y vendedor. Solo se pueden vender cartones que ya
-  se imprimieron, y un N° no se puede vender dos veces.
-- **Sortear**: la app elige al azar entre los vendidos. Se pueden sortear
-  varios premios seguidos (1°, 2°, 3°…) y **el que ya ganó sale del bombo**,
-  así nadie se lleva dos. Queda el historial de quién ganó qué.
-- Al salir un ganador se muestra el **cartón regenerado** en pantalla, para
-  cotejarlo contra el papel que trae la persona.
+## Juego
+
+La pestaña **Juego** tiene un **bolillero digital**: saca las bolillas del 1 al
+90 de a una, con animación, y las marca en un tablero. Se puede proyectar en
+**pantalla completa** (Esc para salir), y la barra espaciadora saca la bolilla
+siguiente.
+
+La noche sigue siempre esta secuencia:
+
+1. **Cuaterna**: gana el primer cartón con 4 números salidos, en cualquier
+   parte del cartón.
+2. **Sorteo**: un cartón al azar entre todos los vendidos.
+3. **Fila**: gana el primer cartón que complete una fila horizontal.
+4. **Sorteo**
+5. **Cartón lleno**: gana el primer cartón con sus 15 números salidos.
+6. **Sorteo**
+
+- La app revisa **sola** los cartones vendidos después de cada bolilla, y
+  frena el bolillero cuando alguien completa.
+- Si varios completan con la misma bolilla, **ganan todos** (empate).
+- Las bolillas **no se reinician** entre etapas: el sorteo solo frena el
+  bolillero.
+- El que ganó una etapa **sigue jugando** las siguientes, y los sorteos son
+  entre **todos** los vendidos, aunque ya hayan ganado algo.
+- Al ganador se le muestra el **cartón regenerado** con los números salidos
+  resaltados, para cotejarlo contra el papel.
+- Si se cierra la pestaña a mitad del juego, al volver sigue en la misma
+  bolilla y la misma etapa.
 
 Como los cartones son deterministas a partir de la semilla, solo se guarda el
 **N° de cartón**: los 15 números se regeneran cuando hacen falta.
@@ -35,8 +58,8 @@ Como los cartones son deterministas a partir de la semilla, solo se guarda el
 Todo se guarda en el navegador (`localStorage`). Si se limpia el caché se
 pierden la numeración y las ventas, así que conviene usar
 **Exportar campaña** (en el panel de configuración): baja un `.json` con
-semilla + tiradas + ventas + premios. **Importar** lo restaura, y también sirve
-para sortear desde otra computadora o celular.
+semilla + tiradas + ventas + premios + bolillas. **Importar** lo restaura, y
+también sirve para jugar desde otra computadora o celular.
 
 ### Estructura de cada unidad impresa
 

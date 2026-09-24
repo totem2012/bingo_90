@@ -30,6 +30,19 @@ export default {
         // celular sin señal en el salón. Todo lo demás acá funciona offline.
         sans: ["system-ui", "Segoe UI", "Roboto", "sans-serif"],
       },
+      // Bolillero (components/juego): la bolilla que sale cae desde el bombo
+      // y rebota un poco. Los componentes la anulan con `motion-reduce`.
+      keyframes: {
+        "bolilla-sale": {
+          "0%": { transform: "translateY(-3rem) scale(0.4)", opacity: "0" },
+          "60%": { transform: "translateY(0.4rem) scale(1.08)", opacity: "1" },
+          "100%": { transform: "translateY(0) scale(1)", opacity: "1" },
+        },
+      },
+      animation: {
+        "bolilla-sale": "bolilla-sale 500ms ease-out",
+        "bombo-gira": "spin 700ms linear infinite",
+      },
     },
   },
   plugins: [],

@@ -3,6 +3,7 @@ import { exportarCampana, importarCampana } from "../lib/campana.ts";
 import { registrarTirada, tiradasDe } from "../lib/registro.ts";
 import { agregarRango, ventasDe } from "../lib/ventas.ts";
 import { premiosDe, registrarPremio } from "../lib/premios.ts";
+import { agregarBolilla, bolillasDe } from "../lib/bolillas.ts";
 
 // Mock mínimo de localStorage para correr la campaña fuera del navegador.
 function instalarLocalStorage(): void {
@@ -32,6 +33,8 @@ function armarCampana(semilla: number): void {
     comprador: "Escuela Pepito",
     telefono: "3794-111111",
   });
+  agregarBolilla(semilla, 45);
+  agregarBolilla(semilla, 3);
 }
 
 describe("exportarCampana", () => {
@@ -39,11 +42,12 @@ describe("exportarCampana", () => {
     instalarLocalStorage();
   });
 
-  it("junta semilla, tiradas, ventas y premios", () => {
+  it("junta semilla, tiradas, ventas, premios y bolillas", () => {
     armarCampana(42);
     const campana = exportarCampana(42);
 
-    expect(campana.version).toBe(1);
+    expect(campana.version).toBe(2);
+    expect(campana.bolillas).toEqual([45, 3]);
     expect(campana.semilla).toBe(42);
     expect(campana.registro).toHaveLength(1);
     expect(campana.ventas).toHaveLength(20);
@@ -80,6 +84,43 @@ describe("importarCampana", () => {
     expect(ventasDe(42)[6]).toMatchObject({ numero: 7, comprador: "Escuela Pepito" });
     expect(premiosDe(42)).toHaveLength(1);
     expect(premiosDe(42)[0]).toMatchObject({ numero: 7, descripcion: "Bicicleta" });
+    expect(bolillasDe(42)).toEqual([45, 3]);
+  });
+
+  it("sigue importando los respaldos de antes del bolillero (versión 1)", () => {
+    // Un archivo v1 no trae bolillas ni la modalidad de los premios.
+    armarCampana(42);
+    importarCampana({
+      version: 1,
+      semilla: 42,
+      registro: tiradasDe(42),
+      ventas: ventasDe(42),
+      premios: [
+        {
+          orden: 1,
+          descripcion: "Bicicleta",
+          numero: 7,
+          comprador: "Ana",
+          telefono: "",
+          fecha: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(bolillasDe(42)).toEqual([]);
+    expect(premiosDe(42)[0]).toMatchObject({ numero: 7, modalidad: "sorteo" });
+    expect(premiosDe(42)[0].etapa).toBeUndefined();
+  });
+
+  it("rechaza bolillas repetidas o fuera del bolillero, sin escribir nada", () => {
+    armarCampana(42);
+    const base = { ...exportarCampana(42), ventas: [] };
+
+    expect(() => importarCampana({ ...base, bolillas: [5, 5] })).toThrow(/bolillas/i);
+    expect(() => importarCampana({ ...base, bolillas: [91] })).toThrow(/bolillas/i);
+    expect(() => importarCampana({ ...base, bolillas: undefined })).toThrow(/bolillas/i);
+    expect(ventasDe(42)).toHaveLength(20);
+    expect(bolillasDe(42)).toEqual([45, 3]);
   });
 
   it("reemplaza los datos previos de esa semilla", () => {
@@ -106,7 +147,7 @@ describe("importarCampana", () => {
   });
 
   it("rechaza otra versión del formato", () => {
-    expect(() => importarCampana({ version: 2, semilla: 1 })).toThrow(/versión/i);
+    expect(() => importarCampana({ version: 3, semilla: 1 })).toThrow(/versión/i);
   });
 
   it("rechaza una semilla inválida", () => {
@@ -123,7 +164,7 @@ describe("importarCampana", () => {
 
   it("no escribe nada si el archivo es inválido", () => {
     armarCampana(42);
-    expect(() => importarCampana({ version: 2, semilla: 42 })).toThrow();
+    expect(() => importarCampana({ version: 3, semilla: 42 })).toThrow();
     // La campaña original sigue intacta.
     expect(ventasDe(42)).toHaveLength(20);
   });

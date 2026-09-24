@@ -3,14 +3,15 @@ import { ConfigPanel } from "./components/ConfigPanel.tsx";
 import { CartonPreview } from "./components/CartonPreview.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { PanelVentas } from "./components/PanelVentas.tsx";
-import { PanelSorteo } from "./components/PanelSorteo.tsx";
+import { PanelJuego } from "./components/juego/PanelJuego.tsx";
 import { useBingo } from "./state/store.ts";
 
-type Vista = "generar" | "sorteo";
+type Vista = "generar" | "ventas" | "juego";
 
 const PESTANAS: { id: Vista; etiqueta: string }[] = [
   { id: "generar", etiqueta: "Generar cartones" },
-  { id: "sorteo", etiqueta: "Ventas y sorteo" },
+  { id: "ventas", etiqueta: "Ventas" },
+  { id: "juego", etiqueta: "Juego" },
 ];
 
 export default function App() {
@@ -31,7 +32,7 @@ export default function App() {
             🎱 Generador de Bingo 90
           </h1>
           <p className="text-sm text-slate-500">
-            Generá cartones únicos, registrá las ventas y sorteá el ganador.
+            Generá cartones únicos, registrá las ventas y jugá con el bolillero.
           </p>
 
           {/* Pestañas */}
@@ -206,27 +207,13 @@ export default function App() {
             </div>
           </section>
         </main>
-      ) : (
-        /*
-          Ventas (izq, ancha) + sorteo (der, angosta). Estaba al revés: la lista
-          de ventas es la que tiene datos largos (nombre del comprador y del
-          vendedor) y quedaba en la columna angosta, truncando justo el dato que
-          hay que leer cuando se canta un número. El sorteo es un input, un
-          botón y la lista de premios: entra cómodo en 24rem.
-        */
-        <main className="mx-auto flex max-w-5xl flex-col-reverse gap-6 px-4 py-8 sm:px-6 md:grid md:grid-cols-[1fr_24rem]">
+      ) : vista === "ventas" ? (
+        <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
           <PanelVentas />
-          {/*
-            En móvil el sorteo va PRIMERO: por eso el `<main>` es un
-            `flex-col-reverse` que recién en `md` pasa a ser grid (donde el
-            reverse no aplica y vuelve el orden de siempre, ventas a la
-            izquierda). El README promete llevarse la campaña al celular para
-            sortear desde ahí: esa persona está parada en un salón cantando
-            números, no cargando ventas, y dejarlo abajo la obligaba a pasar por
-            encima de la lista entera de cartones vendidos cada vez.
-          */}
-          <PanelSorteo />
         </main>
+      ) : (
+        // El juego arma su propio <main>: tablero y etapas van al costado.
+        <PanelJuego />
       )}
     </div>
   );

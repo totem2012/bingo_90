@@ -1,18 +1,31 @@
 // ─────────────────────────────────────────────────────────────────────────
 // Historial de PREMIOS sorteados por semilla, persistido en el navegador.
 //
-// Cada sorteo saca un cartón del bombo: los cartones que ya ganaron no
-// vuelven a entrar en los sorteos siguientes (1er premio, 2do, 3ro…).
+// Desde el bolillero, cada premio sabe también en qué ETAPA de la noche se
+// ganó (ver core/juego.ts). Un empate son varios premios con la misma etapa.
+// Los premios de antes de las etapas no tienen `modalidad` ni `etapa`: al
+// leerlos se toman como sorteos y no cuentan para avanzar la secuencia.
 //
 // Se guarda un SNAPSHOT del comprador al momento del sorteo. Si después se
 // edita o se borra la venta, el historial de premios no se reescribe: lo que
 // se cantó en el evento queda como se cantó.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Un premio ya sorteado. */
+import type { Modalidad } from "../core/juego.ts";
+
+/** Un premio ya ganado. */
 export interface Premio {
-  /** 1 = primer premio, 2 = segundo, … (orden en que se sortearon). */
+  /** 1 = primer premio, 2 = segundo, … (orden en que se registraron). */
   orden: number;
+  /** Cómo se ganó: cuaterna, fila, cartón lleno o sorteo. */
+  modalidad: Modalidad;
+  /**
+   * Índice de la etapa de la noche (en core/juego.ts → SECUENCIA). Falta en
+   * los premios anteriores a las etapas.
+   */
+  etapa?: number;
+  /** Cuántas bolillas habían salido al ganarlo (solo cuaterna/fila/lleno). */
+  bolillas?: number;
   /** Qué se sorteaba (ej: "Bicicleta"). Puede quedar vacío. */
   descripcion: string;
   /** N° del cartón ganador. */
@@ -29,7 +42,10 @@ export interface Premio {
 export type DatosPremio = Pick<
   Premio,
   "descripcion" | "numero" | "comprador" | "telefono"
->;
+> &
+  Partial<Pick<Premio, "modalidad" | "etapa" | "bolillas">>;
+
+const MODALIDADES: readonly string[] = ["cuaterna", "fila", "lleno", "sorteo"];
 
 /** Mapa semilla → premios, tal como se guarda en localStorage. */
 type RegistroPremios = Record<string, Premio[]>;
@@ -87,8 +103,24 @@ export function esPremio(v: unknown): v is Premio {
     typeof p.descripcion === "string" &&
     typeof p.comprador === "string" &&
     typeof p.telefono === "string" &&
-    typeof p.fecha === "string"
+    typeof p.fecha === "string" &&
+    // Opcionales: faltan en los premios de antes de las etapas, pero si están
+    // tienen que tener sentido.
+    (p.modalidad === undefined || MODALIDADES.includes(p.modalidad as string)) &&
+    (p.etapa === undefined ||
+      (Number.isInteger(p.etapa) && (p.etapa as number) >= 0)) &&
+    (p.bolillas === undefined ||
+      (Number.isInteger(p.bolillas) && (p.bolillas as number) >= 1))
   );
+}
+
+/**
+ * Completa lo que les falta a los premios viejos: sin `modalidad` eran
+ * sorteos. Se aplica a todo lo que entra (storage e import), así el resto de
+ * la app puede contar con que `modalidad` siempre está.
+ */
+export function normalizarPremio(p: Premio): Premio {
+  return p.modalidad ? p : { ...p, modalidad: "sorteo" };
 }
 
 /** Lo leído de una semilla + cuántos registros dañados hubo que descartar. */
@@ -116,7 +148,7 @@ export function leerPremiosDe(semilla: number): LecturaPremios {
   if (!Array.isArray(guardados)) {
     return { premios: [], descartados: 1, ilegible: false };
   }
-  const premios = guardados.filter(esPremio);
+  const premios = guardados.filter(esPremio).map(normalizarPremio);
   return {
     premios,
     descartados: guardados.length - premios.length,
@@ -130,34 +162,49 @@ export function premiosDe(semilla: number): Premio[] {
 }
 
 /**
- * Registra un premio al final del historial y devuelve la lista actualizada.
- * El `orden` se calcula solo a partir de los premios previos.
+ * Registra uno o más premios al final del historial (varios = un empate en la
+ * misma etapa) y devuelve la lista actualizada. El `orden` se calcula solo a
+ * partir de los premios previos.
  */
-export function registrarPremio(semilla: number, datos: DatosPremio): Premio[] {
+export function registrarPremios(
+  semilla: number,
+  datos: readonly DatosPremio[],
+): Premio[] {
   const reg = leerTodo();
   const clave = String(semilla);
   const previos = reg[clave] ?? [];
-  const premio: Premio = {
-    orden: previos.length + 1,
-    descripcion: datos.descripcion.trim(),
-    numero: datos.numero,
-    comprador: datos.comprador,
-    telefono: datos.telefono,
-    fecha: new Date().toISOString(),
-  };
-  reg[clave] = [...previos, premio];
+  const fecha = new Date().toISOString();
+  const nuevos = datos.map(
+    (d, i): Premio => ({
+      orden: previos.length + i + 1,
+      modalidad: d.modalidad ?? "sorteo",
+      ...(d.etapa !== undefined && { etapa: d.etapa }),
+      ...(d.bolillas !== undefined && { bolillas: d.bolillas }),
+      descripcion: d.descripcion.trim(),
+      numero: d.numero,
+      comprador: d.comprador,
+      telefono: d.telefono,
+      fecha,
+    }),
+  );
+  reg[clave] = [...previos, ...nuevos];
   escribirTodo(reg);
-  return reg[clave];
+  return reg[clave].map(normalizarPremio);
 }
 
-/** Borra el último premio (el cartón vuelve al bombo). */
+/** Registra un premio al final del historial y devuelve la lista actualizada. */
+export function registrarPremio(semilla: number, datos: DatosPremio): Premio[] {
+  return registrarPremios(semilla, [datos]);
+}
+
+/** Borra el último premio. */
 export function deshacerUltimoPremio(semilla: number): Premio[] {
   const reg = leerTodo();
   const clave = String(semilla);
   const previos = reg[clave] ?? [];
   reg[clave] = previos.slice(0, -1);
   escribirTodo(reg);
-  return reg[clave];
+  return reg[clave].map(normalizarPremio);
 }
 
 /** Borra todo el historial de premios de una semilla. */

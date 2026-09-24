@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { SEMILLA_MAXIMA, type useBingo as UseBingo } from "../state/store.ts";
 import { registrarTirada, semillaRecordada, tiradasDe } from "../lib/registro.ts";
 import { agregarRango, ventasDe, type DatosVenta } from "../lib/ventas.ts";
-import { registrarPremio } from "../lib/premios.ts";
+import { premiosDe, registrarPremio } from "../lib/premios.ts";
+import { bolillasDe } from "../lib/bolillas.ts";
+import { SECUENCIA, cumple, generarLote, type ModalidadBolillero } from "../core/index.ts";
 import { reiniciarPersistencia } from "../lib/persistencia.ts";
 
 // Mock mínimo de localStorage para correr el store fuera del navegador.
@@ -254,7 +256,7 @@ describe("reiniciarCampana", () => {
     expect(useBingo.getState().registro).toEqual([]);
     expect(useBingo.getState().ventas).toEqual([]);
     expect(useBingo.getState().premios).toEqual([]);
-    expect(useBingo.getState().ultimoGanador).toBeNull();
+    expect(useBingo.getState().ultimoResultado).toEqual([]);
     expect(tiradasDe(SEMILLA)).toEqual([]);
     expect(ventasDe(SEMILLA)).toEqual([]);
   });
@@ -458,5 +460,170 @@ describe("marca", () => {
     expect(useBingo.getState().marca.logoIzquierdo).not.toBeNull();
     // …pero el usuario se entera de que no va a estar la próxima vez.
     expect(useBingo.getState().logosGuardados).toBe(false);
+  });
+});
+
+describe("juego", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** Los cartones regenerados de la semilla, por N°. */
+  function cartonDe(numero: number) {
+    return generarLote({ cantidad: 1, semilla: SEMILLA, desde: numero }).cartones[0];
+  }
+
+  /** Saca bolillas hasta que alguien gana la etapa en curso. */
+  function sacarHastaGanador(useBingo: typeof UseBingo) {
+    for (let i = 0; i < 90; i++) {
+      const r = useBingo.getState().sacarBolilla("");
+      if (!r) throw new Error("sacarBolilla se negó en una etapa de bolillero");
+      if (r.ganadores.length > 0) return r;
+    }
+    throw new Error("salieron las 90 bolillas sin ganador");
+  }
+
+  it("los ganadores cumplen con las bolillas que salieron, y antes nadie cumplía", async () => {
+    sembrarCampana();
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    const { ganadores } = sacarHastaGanador(useBingo);
+    const { bolillas, ventas } = useBingo.getState();
+    const salidas = new Set(bolillas);
+    const antes = new Set(bolillas.slice(0, -1));
+
+    expect(ganadores.length).toBeGreaterThan(0);
+    for (const g of ganadores) {
+      expect(g.modalidad).toBe("cuaterna");
+      expect(g.etapa).toBe(0);
+      expect(g.bolillas).toBe(bolillas.length);
+      expect(g.comprador).toBe("Escuela Pepito");
+      expect(cumple(cartonDe(g.numero), salidas, "cuaterna")).toBe(true);
+    }
+    // Nadie tenía cuaterna una bolilla antes: el primero es el primero.
+    for (const v of ventas) {
+      expect(cumple(cartonDe(v.numero), antes, "cuaterna")).toBe(false);
+    }
+    // Y todos los que la completaron con esa bolilla ganaron (empate).
+    const conCuaterna = ventas
+      .map((v) => v.numero)
+      .filter((n) => cumple(cartonDe(n), salidas, "cuaterna"));
+    expect(ganadores.map((g) => g.numero)).toEqual(conCuaterna);
+    expect(bolillasDe(SEMILLA)).toEqual(bolillas);
+  });
+
+  it("recorre la noche entera sin reiniciar las bolillas entre etapas", async () => {
+    sembrarCampana();
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    let bolillasAntes = 0;
+    for (const [etapa, modalidad] of SECUENCIA.entries()) {
+      if (modalidad === "sorteo") {
+        // En un sorteo no se puede sacar bolilla.
+        expect(useBingo.getState().sacarBolilla("")).toBeNull();
+        const ganador = useBingo.getState().sortearGanador("Bici");
+        expect(ganador).toMatchObject({ modalidad: "sorteo", etapa, descripcion: "Bici" });
+      } else {
+        // Y en una etapa de bolillero no se puede sortear.
+        expect(useBingo.getState().sortearGanador("")).toBeNull();
+        const { ganadores } = sacarHastaGanador(useBingo);
+        const salidas = new Set(useBingo.getState().bolillas);
+        for (const g of ganadores) {
+          expect(g.etapa).toBe(etapa);
+          expect(
+            cumple(cartonDe(g.numero), salidas, modalidad as ModalidadBolillero),
+          ).toBe(true);
+        }
+      }
+      // Las bolillas siguen donde estaban: nunca vuelven a cero.
+      expect(useBingo.getState().bolillas.length).toBeGreaterThanOrEqual(bolillasAntes);
+      bolillasAntes = useBingo.getState().bolillas.length;
+      expect(useBingo.getState().ultimoResultado.length).toBeGreaterThan(0);
+      useBingo.getState().continuar();
+      expect(useBingo.getState().ultimoResultado).toEqual([]);
+    }
+
+    // Terminó: ni bolillas ni sorteos.
+    expect(useBingo.getState().sacarBolilla("")).toBeNull();
+    expect(useBingo.getState().sortearGanador("")).toBeNull();
+    const etapas = new Set(premiosDe(SEMILLA).map((p) => p.etapa));
+    expect([...etapas].sort()).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it("el sorteo incluye a los que ya ganaron otra cosa", async () => {
+    // Un solo cartón vendido: gana la cuaterna y tiene que poder ganar el sorteo.
+    registrarTirada(SEMILLA, "Escuela Pepito", 10);
+    agregarRango(SEMILLA, 3, 3, PEPITO, 10);
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    sacarHastaGanador(useBingo);
+    useBingo.getState().continuar();
+
+    expect(useBingo.getState().sortearGanador("")?.numero).toBe(3);
+  });
+
+  it("sin cartones vendidos no se juega", async () => {
+    registrarTirada(SEMILLA, "Escuela Pepito", 10);
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    expect(useBingo.getState().sacarBolilla("")).toBeNull();
+    expect(useBingo.getState().bolillas).toEqual([]);
+  });
+
+  it("solo deja deshacer un sorteo, no un ganador del bolillero", async () => {
+    sembrarCampana();
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    sacarHastaGanador(useBingo);
+    const tras = useBingo.getState().premios;
+    expect(useBingo.getState().deshacerPremio()).toBe(false);
+    expect(useBingo.getState().premios).toEqual(tras);
+
+    useBingo.getState().continuar();
+    useBingo.getState().sortearGanador("");
+    expect(useBingo.getState().deshacerPremio()).toBe(true);
+    // Volvió a la etapa del sorteo.
+    expect(useBingo.getState().premios).toEqual(tras);
+    expect(useBingo.getState().sortearGanador("")).not.toBeNull();
+  });
+
+  it("reiniciar el juego devuelve las bolillas y borra los ganadores, no las ventas", async () => {
+    sembrarCampana();
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+    sacarHastaGanador(useBingo);
+
+    useBingo.getState().reiniciarJuego();
+
+    expect(useBingo.getState().bolillas).toEqual([]);
+    expect(useBingo.getState().premios).toEqual([]);
+    expect(useBingo.getState().ultimoResultado).toEqual([]);
+    expect(bolillasDe(SEMILLA)).toEqual([]);
+    expect(useBingo.getState().ventas).toHaveLength(11);
+  });
+
+  it("al recargar, el juego sigue en la misma bolilla y la misma etapa", async () => {
+    sembrarCampana();
+    let useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+    sacarHastaGanador(useBingo);
+    useBingo.getState().sacarBolilla("");
+    const { bolillas, premios } = useBingo.getState();
+
+    useBingo = await cargarStore();
+
+    expect(useBingo.getState().bolillas).toEqual(bolillas);
+    expect(useBingo.getState().premios).toEqual(premios);
+    // Etapa 1 (sorteo) en curso: sacar bolilla no corresponde.
+    expect(useBingo.getState().sacarBolilla("")).toBeNull();
   });
 });

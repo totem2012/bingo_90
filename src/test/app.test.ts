@@ -174,12 +174,12 @@ describe("texto de la barra de progreso", () => {
 });
 
 /** Renderiza un panel suelto, con el estado que salga del storage sembrado. */
-async function renderizarPanel(cual: "ventas" | "sorteo"): Promise<string> {
+async function renderizarPanel(cual: "ventas" | "juego"): Promise<string> {
   vi.resetModules();
   const Panel =
     cual === "ventas"
       ? (await import("../components/PanelVentas.tsx")).PanelVentas
-      : (await import("../components/PanelSorteo.tsx")).PanelSorteo;
+      : (await import("../components/juego/PanelJuego.tsx")).PanelJuego;
   return renderToStaticMarkup(createElement(Panel));
 }
 
@@ -229,13 +229,28 @@ describe("aviso de que no hay ventas", () => {
     localStorage.setItem("bingo90:semilla:v1", String(SEMILLA));
   });
 
-  it("no le dice al usuario dónde mirar", async () => {
-    // En móvil el sorteo va arriba y las ventas abajo, así que "cargalos
-    // arriba" era falso. Un texto que no depende del layout no se rompe
-    // cuando alguien reordena.
-    const html = await renderizarPanel("sorteo");
+  it("manda a la pestaña de ventas sin referirse al layout", async () => {
+    // Un texto que dice "arriba" o "abajo" se rompe la próxima vez que
+    // alguien reordena; la pestaña tiene nombre y no se mueve.
+    const html = await renderizarPanel("juego");
 
-    expect(html).toMatch(/Cargá los cartones vendidos para poder sortear/);
+    expect(html).toMatch(/cargalos en la pestaña “Ventas”/);
     expect(html).not.toMatch(/Cargalos arriba|más abajo|acá abajo/);
+  });
+});
+
+describe("pestañas", () => {
+  beforeEach(() => {
+    instalarLocalStorage();
+    localStorage.setItem("bingo90:semilla:v1", String(SEMILLA));
+  });
+
+  it("separa las ventas del juego", async () => {
+    const html = await renderizarApp();
+
+    expect(html).toMatch(/Generar cartones/);
+    expect(html).toMatch(/>Ventas</);
+    expect(html).toMatch(/>Juego</);
+    expect(html).not.toMatch(/Ventas y sorteo/);
   });
 });

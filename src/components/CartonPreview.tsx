@@ -13,6 +13,11 @@ interface Props {
   marca: Marca;
   /** N° a mostrar en el talón. Por defecto 1 (vista previa del primer cartón). */
   numero?: number;
+  /**
+   * Números que ya salieron del bolillero: se resaltan con el color de la
+   * marca. Sirve para cotejar a un ganador contra el papel de un vistazo.
+   */
+  marcados?: ReadonlySet<number>;
 }
 
 /** Convierte #rrggbb a rgba con la opacidad dada (para tintes suaves). */
@@ -30,7 +35,7 @@ function hexARgba(hex: string, alpha: number): string {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
-export function CartonPreview({ carton, marca, numero = 1 }: Props) {
+export function CartonPreview({ carton, marca, numero = 1, marcados }: Props) {
   const [qr, setQr] = useState("");
 
   useEffect(() => {
@@ -190,6 +195,9 @@ export function CartonPreview({ carton, marca, numero = 1 }: Props) {
             fila.map((celda, j) => (
               <div
                 key={`${i}-${j}`}
+                data-marcado={
+                  (celda !== null && marcados?.has(celda)) || undefined
+                }
                 // `min-h` solo en pantallas angostas: ahí el talón está oculto y
                 // nada más le da alto a la grilla, así que las filas se
                 // achataban a la altura del texto. En el PDF la celda es más
@@ -198,7 +206,12 @@ export function CartonPreview({ carton, marca, numero = 1 }: Props) {
                 className="flex min-h-[3.75rem] items-center justify-center text-sm font-bold tabular-nums sm:min-h-0 sm:text-base"
                 // Mismo gris que el PDF para las casillas vacías: COLOR_CELDA_VACIA
                 // en renderCarton.ts es rgb(0.96, 0.96, 0.96).
-                style={{ backgroundColor: celda === null ? "#f5f5f5" : "#ffffff" }}
+                // Las que salieron del bolillero van con el color de la marca.
+                style={
+                  celda !== null && marcados?.has(celda)
+                    ? { backgroundColor: color, color: "#ffffff" }
+                    : { backgroundColor: celda === null ? "#f5f5f5" : "#ffffff" }
+                }
               >
                 {celda ?? ""}
               </div>
