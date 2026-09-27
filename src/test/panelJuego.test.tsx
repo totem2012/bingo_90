@@ -76,7 +76,7 @@ describe("juego", () => {
     await montarPanel();
 
     expect(screen.getByText("Etapa 1 de 5")).toBeTruthy();
-    expect(screen.getAllByText("Cuaterna").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Cuaterno").length).toBeGreaterThan(0);
 
     await usuario.click(screen.getByRole("button", { name: /Sacar bolilla/i }));
     // Mientras gira, no se puede sacar otra.
@@ -93,7 +93,7 @@ describe("juego", () => {
     sembrarCampana();
     await montarPanel();
 
-    await usuario.click(screen.getByLabelText(/Premio de la cuaterna/i));
+    await usuario.click(screen.getByLabelText(/Premio del cuaterno/i));
     await usuario.keyboard(" ");
     await esperarQueSalga();
     expect(bolillasDe(SEMILLA)).toHaveLength(0);
@@ -107,11 +107,11 @@ describe("juego", () => {
   it("al completar la cuaterna frena: muestra al ganador y ningún botón para seguir sacando", async () => {
     sembrarCampana();
     await montarPanel();
-    await usuario.type(screen.getByLabelText(/Premio de la cuaterna/i), "Licuadora");
+    await usuario.type(screen.getByLabelText(/Premio del cuaterno/i), "Licuadora");
 
     await sacarHastaGanador();
 
-    expect(screen.getByText("¡Cuaterna!")).toBeTruthy();
+    expect(screen.getByText("¡Cuaterno!")).toBeTruthy();
     expect(screen.getByText("Licuadora")).toBeTruthy();
     expect(screen.getAllByText("María Fernández").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /Sacar bolilla/i })).toBeNull();
@@ -151,7 +151,7 @@ describe("juego", () => {
     expect(screen.getByText("Ganador del sorteo")).toBeTruthy();
     expect(screen.getByText("Bicicleta")).toBeTruthy();
 
-    await usuario.click(screen.getByRole("button", { name: /Siguiente: Fila/i }));
+    await usuario.click(screen.getByRole("button", { name: /Siguiente: Línea/i }));
     expect(screen.getByText("Etapa 3 de 5")).toBeTruthy();
     // Las bolillas no volvieron al bolillero.
     expect(salidasEnTablero()).toBe(bolillasCuaterna);

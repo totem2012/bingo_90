@@ -34,15 +34,15 @@ const PASO_ANIMACION = 70;
 /** Qué hay que lograr en cada modalidad, para explicarlo en pantalla. */
 const REGLA: Record<Modalidad, string> = {
   cuaterna: "Gana el primer cartón con 4 números salidos, en cualquier parte.",
-  fila: "Gana el primer cartón que complete una fila entera.",
+  fila: "Gana el primer cartón que complete una línea entera.",
   lleno: "Gana el primer cartón con sus 15 números salidos.",
   sorteo: "Sale un cartón al azar entre todos los vendidos.",
 };
 
-/** "de la cuaterna", "del sorteo"… para los textos. */
+/** "del cuaterno", "del sorteo"… para los textos. */
 const DE_LA_MODALIDAD: Record<Modalidad, string> = {
-  cuaterna: "de la cuaterna",
-  fila: "de la fila",
+  cuaterna: "del cuaterno",
+  fila: "de la línea",
   lleno: "del cartón lleno",
   sorteo: "del sorteo",
 };

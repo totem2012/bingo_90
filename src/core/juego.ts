@@ -29,10 +29,14 @@ export const SECUENCIA: readonly Modalidad[] = [
   "lleno",
 ];
 
-/** Nombre para mostrar de cada modalidad. */
+/**
+ * Nombre para mostrar de cada modalidad. Las claves internas siguen siendo
+ * "cuaterna" y "fila" porque se guardan en el navegador y en los respaldos;
+ * lo que ve el público es "Cuaterno" y "Línea".
+ */
 export const NOMBRE_MODALIDAD: Record<Modalidad, string> = {
-  cuaterna: "Cuaterna",
-  fila: "Fila",
+  cuaterna: "Cuaterno",
+  fila: "Línea",
   lleno: "Cartón lleno",
   sorteo: "Sorteo",
 };
