@@ -569,6 +569,39 @@ describe("juego", () => {
     expect(useBingo.getState().sortearGanador("")?.numero).toBe(3);
   });
 
+  it("el que ganó el primer sorteo no entra en el segundo", async () => {
+    // Dos cartones vendidos: el segundo sorteo tiene que ser del otro.
+    registrarTirada(SEMILLA, "Escuela Pepito", 10);
+    agregarRango(SEMILLA, 3, 4, PEPITO, 10);
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    sacarHastaGanador(useBingo);
+    useBingo.getState().continuar();
+    const primero = useBingo.getState().sortearGanador("")!.numero;
+    useBingo.getState().continuar();
+    sacarHastaGanador(useBingo);
+    useBingo.getState().continuar();
+    const segundo = useBingo.getState().sortearGanador("")!.numero;
+
+    expect([primero, segundo].sort()).toEqual([3, 4]);
+  });
+
+  it("con un solo cartón vendido, igual se puede hacer el segundo sorteo", async () => {
+    registrarTirada(SEMILLA, "Escuela Pepito", 10);
+    agregarRango(SEMILLA, 3, 3, PEPITO, 10);
+    const useBingo = await cargarStore();
+    useBingo.getState().setSemilla(SEMILLA);
+
+    sacarHastaGanador(useBingo);
+    useBingo.getState().continuar();
+    expect(useBingo.getState().sortearGanador("")?.numero).toBe(3);
+    useBingo.getState().continuar();
+    sacarHastaGanador(useBingo);
+    useBingo.getState().continuar();
+    expect(useBingo.getState().sortearGanador("")?.numero).toBe(3);
+  });
+
   it("sin cartones vendidos no se juega", async () => {
     registrarTirada(SEMILLA, "Escuela Pepito", 10);
     const useBingo = await cargarStore();

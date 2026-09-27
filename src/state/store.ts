@@ -60,7 +60,7 @@ import {
   importarCampana,
   nombreArchivoCampana,
 } from "../lib/campana.ts";
-import { sortearUno } from "../core/sorteo.ts";
+import { elegibles, sortearUno } from "../core/sorteo.ts";
 import {
   SECUENCIA,
   TOTAL_BOLILLAS,
@@ -543,11 +543,19 @@ export const useBingo = create<BingoState>((set, get) => ({
     const { semilla, ventas, premios } = get();
     const etapa = etapaActual(premios);
     if (etapa === null || SECUENCIA[etapa] !== "sorteo") return null;
-    // Entran TODOS los vendidos, aunque ya hayan ganado otra cosa: así lo
-    // juega el cliente.
     if (ventas.length === 0) return null;
 
-    const numero = sortearUno(ventas.map((v) => v.numero));
+    // Entran los vendidos aunque hayan ganado el cuaterno o la línea (así lo
+    // juega el cliente), pero no el que ya ganó un sorteo de esta noche: el
+    // mismo cartón no se lleva dos sorteos. Los "sorteos anteriores" (sin
+    // etapa) son de antes del bolillero y no cuentan. Si ya ganaron todos
+    // (un solo cartón vendido), se sortea entre todos para no trabar la noche.
+    const vendidos = ventas.map((v) => v.numero);
+    const yaGanaronSorteo = premios
+      .filter((p) => p.modalidad === "sorteo" && p.etapa !== undefined)
+      .map((p) => p.numero);
+    const bombo = elegibles(vendidos, yaGanaronSorteo);
+    const numero = sortearUno(bombo.length > 0 ? bombo : vendidos);
     const actualizados = registrarPremios(semilla, [
       datosPremio(numero, ventas, { descripcion, modalidad: "sorteo", etapa }),
     ]);

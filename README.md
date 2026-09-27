@@ -44,7 +44,8 @@ La noche sigue siempre esta secuencia:
 - Las bolillas **no se reinician** entre etapas: el sorteo solo frena el
   bolillero.
 - El que ganó una etapa **sigue jugando** las siguientes, y los sorteos son
-  entre **todos** los vendidos, aunque ya hayan ganado algo.
+  entre todos los vendidos aunque hayan ganado el cuaterno o la línea. Lo que
+  no puede pasar es que el **mismo cartón gane los dos sorteos**.
 - Al ganador se le muestra el **cartón regenerado** con los números salidos
   resaltados, para cotejarlo contra el papel.
 - Si se cierra la pestaña a mitad del juego, al volver sigue en la misma
