@@ -4,11 +4,11 @@
 //   ┌──────────────┬───────────────────────────────────────┐
 //   │ CUPÓN CONTROL │  [logo]  TÍTULO / subtítulo   [logo]   │  ← encabezado
 //   │ CARTÓN N°     │  ===  NOMBRE DEL EVENTO  ===           │  ← evento
-//   │   0003        │  1-9 10-19 … 80-90                     │  ← columnas
-//   │ [SERIE A]     │  ┌─┬─┬─┬─┬─┬─┬─┬─┬─┐                   │
-//   │ Nombre: ___   │  │ │5│ │ │ │6│ │8│ │   ...             │  ← grilla
-//   │ Teléfono: ___ │  └─┴─┴─┴─┴─┴─┴─┴─┴─┘                   │
-//   │ Vendedor: ___ │                                        │
+//   │   0003        │  CARTÓN N° 0003              SERIE A   │  ← N° (cliente)
+//   │ [SERIE A]     │  1-9 10-19 … 80-90                     │  ← columnas
+//   │ Nombre: ___   │  ┌─┬─┬─┬─┬─┬─┬─┬─┬─┐                   │
+//   │ Teléfono: ___ │  │ │5│ │ │ │6│ │8│ │   ...             │  ← grilla
+//   │ Vendedor: ___ │  └─┴─┴─┴─┴─┴─┴─┴─┴─┘                   │
 //   │  [QR]         │                                        │
 //   └──────────────┴───────────────────────────────────────┘
 //                  ↑ línea de corte punteada (se desprende el talón)
@@ -237,6 +237,7 @@ function dibujarCuerpoCarton(
   page: PDFPage,
   fuentes: Fuentes,
   carton: Carton,
+  numero: string,
   rect: Rect,
   marca: MarcaResuelta,
 ): void {
@@ -306,6 +307,46 @@ function dibujarCuerpoCarton(
     );
     top += altoEv;
   }
+
+  // Franja con el N° de cartón (y la serie). El talón se lo queda el
+  // vendedor: sin esto, la parte que se lleva el cliente no tiene número.
+  const altoNro = 14;
+  page.drawRectangle({
+    x: rect.left,
+    y: yDesdeArriba(top + altoNro),
+    width: rect.ancho,
+    height: altoNro,
+    color: aclarar(marca.color, 0.92),
+  });
+  const tamNro = 9;
+  const topNro = topDeLineaCentrada(top, altoNro, tamNro);
+  const yNro = yDesdeArriba(topNro) - tamNro * BASE_DESDE_TOPE;
+  const etiquetaNro = "CARTÓN N° ";
+  page.drawText(etiquetaNro, {
+    x: rect.left + 6,
+    y: yNro,
+    size: tamNro,
+    font: fuentes.normal,
+    color: COLOR_TENUE,
+  });
+  page.drawText(numero, {
+    x: rect.left + 6 + fuentes.normal.widthOfTextAtSize(etiquetaNro, tamNro),
+    y: yNro,
+    size: tamNro,
+    font: fuentes.bold,
+    color: marca.color,
+  });
+  if (marca.serie.trim() !== "") {
+    const textoSerie = `SERIE ${marca.serie.trim().toUpperCase()}`;
+    page.drawText(textoSerie, {
+      x: rect.left + rect.ancho - 6 - fuentes.bold.widthOfTextAtSize(textoSerie, tamNro),
+      y: yNro,
+      size: tamNro,
+      font: fuentes.bold,
+      color: marca.color,
+    });
+  }
+  top += altoNro;
 
   // Encabezados de columna
   const anchoCelda = rect.ancho / COLUMNAS;
@@ -393,6 +434,7 @@ export function dibujarUnidad(
     page,
     fuentes,
     carton,
+    numeroFmt,
     {
       left: xCorte + padCarton,
       top: rect.top,

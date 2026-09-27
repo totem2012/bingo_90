@@ -63,7 +63,7 @@ export function CartonPreview({ carton, marca, numero = 1, marcados }: Props) {
         ~100px y su letra de 6px es ilegible, y encima le deja ~28px por celda a
         la grilla, que es el dato que de verdad hay que leer cuando se canta un
         número. Escondiéndolo, las 9 columnas pasan a ~40px. El N° de cartón, que
-        es lo único del talón que se necesita en pantalla, se muestra arriba de
+        es lo único del talón que se necesita en pantalla, igual queda arriba de
         la grilla (ver abajo). En el PDF impreso el talón está siempre: esto es
         una adaptación de la pantalla chica, no un cambio del cartón.
       */}
@@ -110,22 +110,6 @@ export function CartonPreview({ carton, marca, numero = 1, marcados }: Props) {
 
       {/* ── Cartón ── */}
       <div className="flex flex-1 flex-col">
-        {/* Reemplazo del talón en pantallas angostas: el N° y la serie. */}
-        <div className="flex items-baseline justify-between gap-2 px-2 py-1 sm:hidden">
-          <span className="text-[9px] font-bold text-slate-500">CARTÓN N°</span>
-          <span className="text-base font-extrabold leading-none" style={{ color }}>
-            {String(numero).padStart(6, "0")}
-          </span>
-          {marca.serie.trim() !== "" && (
-            <span
-              className="rounded px-1.5 py-0.5 text-[8px] font-bold text-white"
-              style={{ backgroundColor: color }}
-            >
-              SERIE {marca.serie.trim().toUpperCase()}
-            </span>
-          )}
-        </div>
-
         {hayEncabezado && (
           <div
             className="flex items-center gap-2 px-2 py-1.5"
@@ -168,6 +152,28 @@ export function CartonPreview({ carton, marca, numero = 1, marcados }: Props) {
             {marca.evento}
           </div>
         )}
+
+        {/*
+          N° de cartón en la parte del cliente (el talón se lo queda el
+          vendedor). Igual que en el PDF: arriba de los encabezados de columna.
+          En pantallas angostas, además, es lo que reemplaza al talón oculto.
+        */}
+        <div
+          className="flex items-center justify-between gap-2 px-2 py-0.5"
+          style={{ backgroundColor: hexARgba(color, 0.08) }}
+        >
+          <span className="text-[9px] text-slate-500">
+            CARTÓN N°{" "}
+            <span className="font-extrabold tabular-nums" style={{ color }}>
+              {String(numero).padStart(6, "0")}
+            </span>
+          </span>
+          {marca.serie.trim() !== "" && (
+            <span className="text-[9px] font-bold" style={{ color }}>
+              SERIE {marca.serie.trim().toUpperCase()}
+            </span>
+          )}
+        </div>
 
         {/* Encabezados de columna */}
         <div className="grid grid-cols-9">
