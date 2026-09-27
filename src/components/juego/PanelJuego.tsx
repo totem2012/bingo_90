@@ -1,7 +1,7 @@
 // El juego de la noche: bolillero, sorteos y ganadores.
 //
 // La noche sigue la secuencia de core/juego.ts (cuaterna → sorteo → fila →
-// sorteo → cartón lleno → sorteo). La etapa en curso se deriva de los premios
+// sorteo → cartón lleno). La etapa en curso se deriva de los premios
 // del store; acá solo vive lo visual (animaciones, pantalla completa, qué
 // cartón se está cotejando).
 
@@ -585,7 +585,7 @@ function Resultado({
   );
 }
 
-/** Las seis etapas de la noche con sus ganadores, y el historial viejo. */
+/** Las etapas de la noche con sus ganadores, y el historial viejo. */
 function ListaEtapas({
   premios,
   etapa,
@@ -603,9 +603,12 @@ function ListaEtapas({
   onDeshacer: () => void;
   onReiniciar: () => void;
 }) {
-  // Sorteos de antes de que existieran las etapas: no se pierden, pero no
-  // cuentan para la secuencia de esta noche.
-  const anteriores = premios.filter((p) => p.etapa === undefined);
+  // Sorteos de antes de que existieran las etapas, o de una etapa que ya no
+  // está en la secuencia (el sorteo final después del cartón lleno, que se
+  // sacó): no se pierden, pero no cuentan para la secuencia de esta noche.
+  const anteriores = premios.filter(
+    (p) => p.etapa === undefined || p.etapa >= SECUENCIA.length,
+  );
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

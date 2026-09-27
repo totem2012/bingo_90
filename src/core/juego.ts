@@ -27,7 +27,6 @@ export const SECUENCIA: readonly Modalidad[] = [
   "fila",
   "sorteo",
   "lleno",
-  "sorteo",
 ];
 
 /** Nombre para mostrar de cada modalidad. */

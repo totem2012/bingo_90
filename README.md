@@ -35,8 +35,8 @@ La noche sigue siempre esta secuencia:
 2. **Sorteo**: un cartón al azar entre todos los vendidos.
 3. **Fila**: gana el primer cartón que complete una fila horizontal.
 4. **Sorteo**
-5. **Cartón lleno**: gana el primer cartón con sus 15 números salidos.
-6. **Sorteo**
+5. **Cartón lleno**: gana el primer cartón con sus 15 números salidos. Con
+   esto termina el juego.
 
 - La app revisa **sola** los cartones vendidos después de cada bolilla, y
   frena el bolillero cuando alguien completa.

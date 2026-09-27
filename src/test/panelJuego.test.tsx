@@ -75,7 +75,7 @@ describe("juego", () => {
     sembrarCampana();
     await montarPanel();
 
-    expect(screen.getByText("Etapa 1 de 6")).toBeTruthy();
+    expect(screen.getByText("Etapa 1 de 5")).toBeTruthy();
     expect(screen.getAllByText("Cuaterna").length).toBeGreaterThan(0);
 
     await usuario.click(screen.getByRole("button", { name: /Sacar bolilla/i }));
@@ -143,7 +143,7 @@ describe("juego", () => {
     const bolillasCuaterna = bolillasDe(SEMILLA).length;
 
     await usuario.click(screen.getByRole("button", { name: /Siguiente: Sorteo/i }));
-    expect(screen.getByText("Etapa 2 de 6")).toBeTruthy();
+    expect(screen.getByText("Etapa 2 de 5")).toBeTruthy();
     await usuario.type(screen.getByLabelText(/Premio del sorteo/i), "Bicicleta");
     await usuario.click(screen.getByRole("button", { name: /Sortear ganador/i }));
     await esperarQueSalga();
@@ -152,7 +152,7 @@ describe("juego", () => {
     expect(screen.getByText("Bicicleta")).toBeTruthy();
 
     await usuario.click(screen.getByRole("button", { name: /Siguiente: Fila/i }));
-    expect(screen.getByText("Etapa 3 de 6")).toBeTruthy();
+    expect(screen.getByText("Etapa 3 de 5")).toBeTruthy();
     // Las bolillas no volvieron al bolillero.
     expect(salidasEnTablero()).toBe(bolillasCuaterna);
   });

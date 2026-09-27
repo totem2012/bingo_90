@@ -553,7 +553,7 @@ describe("juego", () => {
     expect(useBingo.getState().sacarBolilla("")).toBeNull();
     expect(useBingo.getState().sortearGanador("")).toBeNull();
     const etapas = new Set(premiosDe(SEMILLA).map((p) => p.etapa));
-    expect([...etapas].sort()).toEqual([0, 1, 2, 3, 4, 5]);
+    expect([...etapas].sort()).toEqual([0, 1, 2, 3, 4]);
   });
 
   it("el sorteo incluye a los que ya ganaron otra cosa", async () => {
