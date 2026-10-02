@@ -28,9 +28,17 @@ const TODOS = CARTON.filas.flat().filter((c): c is number => c !== null);
 const salidas = (...n: number[]) => new Set(n);
 
 describe("cumple: cuaterna", () => {
-  it("con 4 números en filas distintas ya es cuaterna", () => {
-    // El cliente la juega así: 4 en cualquier parte, no en la misma fila.
-    expect(cumple(CARTON, salidas(1, 11, 22, 85), "cuaterna")).toBe(true);
+  it("con 4 números de la misma fila es cuaterna", () => {
+    expect(cumple(CARTON, salidas(1, 20, 40, 60), "cuaterna")).toBe(true);
+  });
+
+  it("con 4 números en filas distintas NO es cuaterna", () => {
+    // El cliente la juega así: los 4 tienen que estar en la misma línea.
+    expect(cumple(CARTON, salidas(1, 11, 22, 85), "cuaterna")).toBe(false);
+  });
+
+  it("3 + 3 en dos filas no alcanza aunque sean 6 salidos", () => {
+    expect(cumple(CARTON, salidas(1, 20, 40, 11, 31, 51), "cuaterna")).toBe(false);
   });
 
   it("con 3 no alcanza", () => {
@@ -79,7 +87,8 @@ describe("ganadoresDe", () => {
   ];
 
   it("si completan varios con la misma bolilla, ganan todos", () => {
-    const s = salidas(1, 11, 22, 85, 3, 13, 24, 86);
+    // 4 de la primera fila de cada cartón.
+    const s = salidas(1, 20, 40, 60, 3, 23, 43, 63);
     expect(ganadoresDe(cartones, s, "cuaterna")).toEqual([10, 20]);
   });
 

@@ -30,10 +30,11 @@ siguiente.
 
 La noche sigue siempre esta secuencia:
 
-1. **Cuaterno**: gana el primer cartón con 4 números salidos, en cualquier
-   parte del cartón.
+1. **Cuaterno**: gana el primer cartón con 4 números salidos en una misma
+   línea horizontal (4 de sus 5). Sueltos en líneas distintas no cuentan.
 2. **Sorteo**: un cartón al azar entre todos los vendidos.
-3. **Línea**: gana el primer cartón que complete una línea horizontal.
+3. **Línea**: gana el primer cartón que complete una línea horizontal (sus 5
+   números).
 4. **Sorteo**
 5. **Cartón lleno**: gana el primer cartón con sus 15 números salidos. Con
    esto termina el juego.

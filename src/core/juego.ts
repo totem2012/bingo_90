@@ -51,8 +51,8 @@ export function esModalidadBolillero(m: Modalidad): m is ModalidadBolillero {
 /**
  * ¿El cartón gana la modalidad con las bolillas que salieron?
  *
- * - Cuaterna: 4 números salidos en CUALQUIER parte del cartón (no hace falta
- *   que estén en la misma fila; así lo juega el cliente).
+ * - Cuaterna: 4 números salidos en una MISMA fila horizontal (4 de sus 5).
+ *   Sueltos en filas distintas no cuentan.
  * - Fila: una fila horizontal completa (sus 5 números).
  * - Cartón lleno: los 15 números.
  */
@@ -64,10 +64,9 @@ export function cumple(
   const porFila = carton.filas.map(
     (fila) => fila.filter((c) => c !== null && salidas.has(c)).length,
   );
-  const total = porFila.reduce((a, b) => a + b, 0);
   switch (modalidad) {
     case "cuaterna":
-      return total >= 4;
+      return porFila.some((n) => n >= 4);
     case "fila":
       return carton.filas.some(
         (fila, i) => porFila[i] === fila.filter((c) => c !== null).length,
