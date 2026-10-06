@@ -119,22 +119,22 @@ describe("etapaActual", () => {
   it("arranca en la cuaterna y sigue la secuencia del cliente", () => {
     expect(SECUENCIA).toEqual([
       "cuaterna",
-      "sorteo",
       "fila",
-      "sorteo",
       "lleno",
+      "sorteo",
     ]);
     expect(etapaActual([])).toBe(0);
     expect(etapaActual([{ etapa: 0 }])).toBe(1);
     expect(etapaActual([{ etapa: 0 }, { etapa: 0 }, { etapa: 1 }])).toBe(2);
+    expect(etapaActual([{ etapa: 0 }, { etapa: 1 }, { etapa: 2 }])).toBe(3);
   });
 
   it("con todas las etapas cerradas, el juego terminó", () => {
     expect(etapaActual(SECUENCIA.map((_, etapa) => ({ etapa })))).toBeNull();
   });
 
-  it("un sorteo guardado después del cartón lleno no reabre el juego", () => {
-    // Antes la noche terminaba con un sorteo más (etapa 5).
+  it("premios de secuencias viejas con más etapas no reabren el juego", () => {
+    // Si hay premios guardados de versiones anteriores (etapas 4 o 5):
     const viejos = [0, 1, 2, 3, 4, 5].map((etapa) => ({ etapa }));
     expect(etapaActual(viejos)).toBeNull();
   });

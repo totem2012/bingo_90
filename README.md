@@ -32,21 +32,20 @@ La noche sigue siempre esta secuencia:
 
 1. **Cuaterno**: gana el primer cartón con 4 números salidos en una misma
    línea horizontal (4 de sus 5). Sueltos en líneas distintas no cuentan.
-2. **Sorteo**: un cartón al azar entre todos los vendidos.
-3. **Línea**: gana el primer cartón que complete una línea horizontal (sus 5
+2. **Línea**: gana el primer cartón que complete una línea horizontal (sus 5
    números).
-4. **Sorteo**
-5. **Cartón lleno**: gana el primer cartón con sus 15 números salidos. Con
-   esto termina el juego.
+3. **Cartón lleno**: gana el primer cartón con sus 15 números salidos.
+4. **Sorteo**: un cartón al azar entre todos los vendidos. Con esto termina
+   el juego.
 
 - La app revisa **sola** los cartones vendidos después de cada bolilla, y
   frena el bolillero cuando alguien completa.
 - Si varios completan con la misma bolilla, **ganan todos** (empate).
-- Las bolillas **no se reinician** entre etapas: el sorteo solo frena el
-  bolillero.
-- El que ganó una etapa **sigue jugando** las siguientes, y los sorteos son
-  entre todos los vendidos aunque hayan ganado el cuaterno o la línea. Lo que
-  no puede pasar es que el **mismo cartón gane los dos sorteos**.
+- Las bolillas **no se reinician** entre etapas: la línea y el cartón lleno
+  se juegan con las bolillas acumuladas de las etapas anteriores.
+- El que ganó una etapa **sigue jugando** las siguientes, y el sorteo es
+  entre todos los vendidos aunque hayan ganado el cuaterno, la línea o el
+  cartón lleno.
 - Al ganador se le muestra el **cartón regenerado** con los números salidos
   resaltados, para cotejarlo contra el papel.
 - Si se cierra la pestaña a mitad del juego, al volver sigue en la misma

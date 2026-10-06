@@ -2,10 +2,9 @@
 // Reglas del JUEGO de la noche: bolillero y etapas.
 //
 // La noche sigue una secuencia fija de etapas (ver SECUENCIA). Tres se juegan
-// con el bolillero (cuaterna, fila y cartón lleno) y las otras son sorteos al
+// con el bolillero (cuaterna, fila y cartón lleno) y la última es un sorteo al
 // azar entre todos los vendidos. Las bolillas NO se reinician entre etapas:
-// el sorteo solo frena el bolillero, y la fila se sigue jugando con las
-// bolillas que salieron durante la cuaterna.
+// la fila y el cartón lleno se siguen jugando con las bolillas acumuladas.
 //
 // Módulo PURO: no sabe de localStorage ni del DOM. El RNG es inyectable como
 // en sorteo.ts, para que los tests sean predecibles.
@@ -23,10 +22,9 @@ export type ModalidadBolillero = Exclude<Modalidad, "sorteo">;
 /** Orden de las etapas de la noche. El índice es el `etapa` de cada premio. */
 export const SECUENCIA: readonly Modalidad[] = [
   "cuaterna",
-  "sorteo",
   "fila",
-  "sorteo",
   "lleno",
+  "sorteo",
 ];
 
 /**

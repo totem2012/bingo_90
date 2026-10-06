@@ -1,7 +1,7 @@
 // El juego de la noche: bolillero, sorteos y ganadores.
 //
-// La noche sigue la secuencia de core/juego.ts (cuaterna → sorteo → fila →
-// sorteo → cartón lleno). La etapa en curso se deriva de los premios
+// La noche sigue la secuencia de core/juego.ts (cuaterna → fila →
+// cartón lleno → sorteo). La etapa en curso se deriva de los premios
 // del store; acá solo vive lo visual (animaciones, pantalla completa, qué
 // cartón se está cotejando).
 

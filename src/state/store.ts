@@ -545,11 +545,12 @@ export const useBingo = create<BingoState>((set, get) => ({
     if (etapa === null || SECUENCIA[etapa] !== "sorteo") return null;
     if (ventas.length === 0) return null;
 
-    // Entran los vendidos aunque hayan ganado el cuaterno o la línea (así lo
-    // juega el cliente), pero no el que ya ganó un sorteo de esta noche: el
-    // mismo cartón no se lleva dos sorteos. Los "sorteos anteriores" (sin
-    // etapa) son de antes del bolillero y no cuentan. Si ya ganaron todos
-    // (un solo cartón vendido), se sortea entre todos para no trabar la noche.
+    // Entran los vendidos aunque hayan ganado el cuaterno, la línea o el
+    // cartón lleno (así lo juega el cliente), pero no el que ya ganó un
+    // sorteo de esta noche: el mismo cartón no se lleva dos sorteos. Los
+    // "sorteos anteriores" (sin etapa) son de antes del bolillero y no cuentan.
+    // Si ya ganaron todos (un solo cartón vendido), se sortea entre todos
+    // para no trabar la noche.
     const vendidos = ventas.map((v) => v.numero);
     const yaGanaronSorteo = premios
       .filter((p) => p.modalidad === "sorteo" && p.etapa !== undefined)

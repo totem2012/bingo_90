@@ -553,52 +553,73 @@ describe("juego", () => {
     expect(useBingo.getState().sacarBolilla("")).toBeNull();
     expect(useBingo.getState().sortearGanador("")).toBeNull();
     const etapas = new Set(premiosDe(SEMILLA).map((p) => p.etapa));
-    expect([...etapas].sort()).toEqual([0, 1, 2, 3, 4]);
+    expect([...etapas].sort()).toEqual([0, 1, 2, 3]);
   });
 
   it("el sorteo incluye a los que ya ganaron otra cosa", async () => {
-    // Un solo cartón vendido: gana la cuaterna y tiene que poder ganar el sorteo.
+    // Un solo cartón vendido: gana la cuaterna, línea y cartón lleno, y tiene que poder ganar el sorteo.
     registrarTirada(SEMILLA, "Escuela Pepito", 10);
     agregarRango(SEMILLA, 3, 3, PEPITO, 10);
     const useBingo = await cargarStore();
     useBingo.getState().setSemilla(SEMILLA);
 
-    sacarHastaGanador(useBingo);
+    sacarHastaGanador(useBingo); // cuaterna
+    useBingo.getState().continuar();
+    sacarHastaGanador(useBingo); // línea
+    useBingo.getState().continuar();
+    sacarHastaGanador(useBingo); // lleno
     useBingo.getState().continuar();
 
     expect(useBingo.getState().sortearGanador("")?.numero).toBe(3);
   });
 
-  it("el que ganó el primer sorteo no entra en el segundo", async () => {
-    // Dos cartones vendidos: el segundo sorteo tiene que ser del otro.
+  it("si ya había un ganador de sorteo previo, no se repite en el siguiente sorteo", async () => {
+    // Dos cartones vendidos: si el cartón 3 ya ganó un sorteo, el sorteo debe ser para el 4.
     registrarTirada(SEMILLA, "Escuela Pepito", 10);
     agregarRango(SEMILLA, 3, 4, PEPITO, 10);
+    registrarPremio(SEMILLA, {
+      numero: 3,
+      comprador: "Pepito",
+      telefono: "",
+      descripcion: "",
+      modalidad: "sorteo",
+      etapa: 99,
+    });
     const useBingo = await cargarStore();
     useBingo.getState().setSemilla(SEMILLA);
 
-    sacarHastaGanador(useBingo);
+    sacarHastaGanador(useBingo); // cuaterna
     useBingo.getState().continuar();
-    const primero = useBingo.getState().sortearGanador("")!.numero;
+    sacarHastaGanador(useBingo); // línea
     useBingo.getState().continuar();
-    sacarHastaGanador(useBingo);
+    sacarHastaGanador(useBingo); // lleno
     useBingo.getState().continuar();
-    const segundo = useBingo.getState().sortearGanador("")!.numero;
 
-    expect([primero, segundo].sort()).toEqual([3, 4]);
+    const ganador = useBingo.getState().sortearGanador("")!.numero;
+    expect(ganador).toBe(4);
   });
 
-  it("con un solo cartón vendido, igual se puede hacer el segundo sorteo", async () => {
+  it("con un solo cartón vendido, igual se puede sortear aunque ya haya ganado un sorteo previo", async () => {
     registrarTirada(SEMILLA, "Escuela Pepito", 10);
     agregarRango(SEMILLA, 3, 3, PEPITO, 10);
+    registrarPremio(SEMILLA, {
+      numero: 3,
+      comprador: "Pepito",
+      telefono: "",
+      descripcion: "",
+      modalidad: "sorteo",
+      etapa: 99,
+    });
     const useBingo = await cargarStore();
     useBingo.getState().setSemilla(SEMILLA);
 
-    sacarHastaGanador(useBingo);
+    sacarHastaGanador(useBingo); // cuaterna
     useBingo.getState().continuar();
-    expect(useBingo.getState().sortearGanador("")?.numero).toBe(3);
+    sacarHastaGanador(useBingo); // línea
     useBingo.getState().continuar();
-    sacarHastaGanador(useBingo);
+    sacarHastaGanador(useBingo); // lleno
     useBingo.getState().continuar();
+
     expect(useBingo.getState().sortearGanador("")?.numero).toBe(3);
   });
 
