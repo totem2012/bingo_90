@@ -32,11 +32,26 @@ export const DURACION_SORTEO = 1500;
 const PASO_ANIMACION = 70;
 
 /** Qué hay que lograr en cada modalidad, para explicarlo en pantalla. */
-const REGLA: Record<Modalidad, string> = {
-  cuaterna: "Gana el primer cartón con 4 números salidos en una misma línea.",
-  fila: "Gana el primer cartón que complete una línea entera (sus 5 números).",
-  lleno: "Gana el primer cartón con sus 15 números salidos.",
-  sorteo: "Sale un cartón al azar entre todos los vendidos.",
+const REGLA: Record<Modalidad, { regla: string; aclaracion?: string }> = {
+  cuaterna: {
+    regla: "Gana el primer cartón con 4 números salidos en una misma línea.",
+    aclaracion:
+      "En caso de haber dos o más ganadores se repartirá el premio entre ambos.",
+  },
+  fila: {
+    regla:
+      "Gana el primer cartón que complete una línea entera (sus 5 números).",
+    aclaracion:
+      "En caso de haber dos o más ganadores se repartirá el premio entre ambos.",
+  },
+  lleno: {
+    regla: "Gana el primer cartón con sus 15 números salidos.",
+    aclaracion:
+      "En caso de haber dos o más ganadores se repartirá el premio entre ambos.",
+  },
+  sorteo: {
+    regla: "Sale un cartón al azar entre todos los vendidos.",
+  },
 };
 
 /** "del cuaterno", "del sorteo"… para los textos. */
@@ -252,9 +267,14 @@ export function PanelJuego() {
           >
             {NOMBRE_MODALIDAD[modalidad]}
           </span>
-          <span className={["text-sm", textoSuave].join(" ")}>
-            {REGLA[modalidad]}
-          </span>
+          <p className={["text-sm", textoSuave].join(" ")}>
+            {REGLA[modalidad].regla}
+          </p>
+          {REGLA[modalidad].aclaracion && (
+            <p className={["text-sm", textoSuave].join(" ")}>
+              {REGLA[modalidad].aclaracion}
+            </p>
+          )}
         </div>
 
         {enBolillero ? (
